@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'print',
 ]
 
 MIDDLEWARE = [
@@ -40,6 +41,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+CORS_ALLOW_ALL_ORIGINS = True  
 
 ROOT_URLCONF = 'projet.urls'
 
@@ -66,10 +69,15 @@ WSGI_APPLICATION = 'projet.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'Printmg',     
+        'USER': 'fiti',   
+        'PASSWORD': 'fiti', 
+        'HOST': 'localhost',           
+        'PORT': '5432',       
     }
 }
+
 
 
 # Password validation
@@ -117,3 +125,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
 ]
 CORS_ALLOW_CREDENTIALS = True
+
+MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_URL = '/media/'
+
