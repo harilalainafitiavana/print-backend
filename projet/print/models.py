@@ -1,6 +1,8 @@
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from decimal import Decimal
+
 
 
 class Produits(models.Model):
@@ -58,13 +60,16 @@ class Utilisateurs(AbstractBaseUser, PermissionsMixin):
 
 
 
+# -----------------------------
+# Configuration d'impression
+# -----------------------------
 class ConfigurationImpression(models.Model):
     FORMAT_CHOICES = [
         ('petit', 'Petit format'),
         ('grand', 'Grand format'),
     ]
     format_type = models.CharField(max_length=10, choices=FORMAT_CHOICES)
-    
+
     SMALL_FORMAT_CHOICES = [
         ('A5', 'A5'),
         ('A4', 'A4'),
@@ -72,25 +77,50 @@ class ConfigurationImpression(models.Model):
         ('custom', 'Personnalisé'),
     ]
     small_format = models.CharField(max_length=10, choices=SMALL_FORMAT_CHOICES, null=True, blank=True)
-    
+
     largeur = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     hauteur = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
-    
+
     PAPIER_CHOICES = [
         ('glace', 'Papier glacé'),
         ('mat', 'Papier mat'),
     ]
-    paper_type = models.CharField(max_length=10, choices=PAPIER_CHOICES)
-    
+    paper_type = models.CharField(max_length=10, choices=PAPIER_CHOICES, null=True, blank=True)
+
     FINITION_CHOICES = [
         ('brillant', 'Brillant'),
         ('mate', 'Mate'),
         ('standard', 'Standard'),
     ]
-    finish = models.CharField(max_length=10, choices=FINITION_CHOICES)
-    
+    finish = models.CharField(max_length=10, choices=FINITION_CHOICES, null=True, blank=True)
+
     quantity = models.PositiveIntegerField()
 
+    def clean(self):
+        if self.quantity <= 0:
+            raise ValidationError("La quantité doit être un nombre entier positif.")
+
+    # ✅ Nouveaux champs facultatifs
+    DUPLEX_CHOICES = [
+        ('recto', 'Recto seul'),
+        ('recto_verso', 'Recto/verso'),
+    ]
+    duplex = models.CharField(max_length=20, choices=DUPLEX_CHOICES, null=True, blank=True)
+
+    BINDING_CHOICES = [
+        ('spirale', 'Spirale'),
+        ('dos_colle', 'Dos collé'),
+        ('agrafé', 'Agrafé'),
+    ]
+    binding = models.CharField(max_length=20, choices=BINDING_CHOICES, null=True, blank=True)
+
+    COVER_CHOICES = [
+        ('simple', 'Papier simple'),
+        ('photo', 'Papier photo'),
+    ]
+    cover_paper = models.CharField(max_length=20, choices=COVER_CHOICES, null=True, blank=True)
+
+    # Validation existante
     def clean(self):
         if self.format_type == 'grand':
             if self.largeur is None or self.hauteur is None:
@@ -108,23 +138,58 @@ class ConfigurationImpression(models.Model):
             elif self.small_format == 'custom' and self.quantity < 50:
                 raise ValidationError("Quantité minimale pour format personnalisé : 50")
 
-
+# -----------------------------
+# Commande
+# -----------------------------
 class Commande(models.Model):
     utilisateur = models.ForeignKey("Utilisateurs", on_delete=models.CASCADE)
     configuration = models.OneToOneField(ConfigurationImpression, on_delete=models.CASCADE)
     date_commande = models.DateTimeField(auto_now_add=True)
-    statut = models.CharField(max_length=100)
+    statut = models.CharField(max_length=100, default="en_attente")
     montant_total = models.DecimalField(max_digits=10, decimal_places=2)
     mode_paiement = models.CharField(max_length=155)
 
     def __str__(self):
         return f"Commande {self.id} - {self.utilisateur}"
 
+    def calculer_montant(self):
+        """Calcule le montant total selon la configuration impression"""
+        config = self.configuration
 
+        # ⚠️ Tu peux modifier ces prix sans migration
+        prix_par_m2 = Decimal("5000.00")
+        prix_formats = {
+            "A3": Decimal("1000.00"),
+            "A4": Decimal("500.00"),
+            "A5": Decimal("300.00"),
+            "A6": Decimal("200.00"),
+        }
+
+        if config.format_type == "grand":
+            surface = (config.largeur / 100) * (config.hauteur / 100)  # cm → m
+            if surface < 1:
+                surface = Decimal("1.00")  # min 1 m²
+            montant = surface * prix_par_m2 * config.quantity
+        elif config.format_type == "petit":
+            if config.small_format == "custom":
+                surface = (config.largeur / 100) * (config.hauteur / 100)
+                montant = surface * prix_par_m2 * config.quantity
+            else:
+                montant = prix_formats.get(config.small_format, Decimal("0")) * config.quantity
+        else:
+            montant = Decimal("0")
+
+        return montant
+
+    def save(self, *args, **kwargs):
+        self.montant_total = self.calculer_montant()  # recalcul automatique
+        super().save(*args, **kwargs)
+
+# -----------------------------
+# Fichier
+# -----------------------------
 def fichier_upload_path(instance, filename):
-    # Stocke le fichier dans media/fichiers/<commande_id>/<filename>
     return f'fichiers/{instance.commande.id}/{filename}'
-
 
 class Fichier(models.Model):
     commande = models.ForeignKey("Commande", on_delete=models.CASCADE, related_name="fichiers")
@@ -137,34 +202,33 @@ class Fichier(models.Model):
     date_upload = models.DateTimeField(auto_now_add=True)
 
     def clean(self):
-        # Vérification de la résolution
         if self.resolution_dpi not in [150, 300]:
             raise ValidationError("La résolution doit être 150dpi ou 300dpi.")
 
-        # Vérification du profil couleur
-        if self.profil_couleur.upper() not in ["CMJN", "CYMK"]:
-            raise ValidationError("Le profil couleur doit être CMJN ou CYMK.")
+        if self.profil_couleur.upper() not in ["CMJN", "CMYK"]:
+            raise ValidationError("Le profil couleur doit être CMJN ou CMYK.")
 
-        # Vérification du format
         valid_extensions = ['.pdf', '.jpg', '.jpeg']
         if not any(self.fichier.name.lower().endswith(ext) for ext in valid_extensions):
-            raise ValidationError("Le fichier doit être au format .pdf ou .jepg")
+            raise ValidationError("Le fichier doit être au format .pdf ou .jpeg")
 
     def __str__(self):
         return self.nom_fichier
 
-
+# -----------------------------
+# Paiement (MVola)
+# -----------------------------
 class Paiement(models.Model):
-    commande = models.ForeignKey("Commande", on_delete=models.CASCADE, related_name="paiements")
-    phone = models.CharField(max_length=15)  # numéro de téléphone pour le paiement
-    montant = models.DecimalField(max_digits=15, decimal_places=2)  # montant en Ariary
-    options = models.TextField(blank=True, null=True)  # options supplémentaires
-    reference_trans = models.CharField(max_length=100, blank=True, null=True)  # référence de paiement Mvola
+    commande = models.OneToOneField(Commande, on_delete=models.CASCADE, related_name="paiement")
+    transaction_id = models.CharField(max_length=100, unique=True, null=True, blank=True)  # ID MVola
+    phone = models.CharField(max_length=20)
+    montant = models.DecimalField(max_digits=10, decimal_places=2)
+    statut_paiement = models.CharField(max_length=50, default="en_attente")  
     date_paiement = models.DateTimeField(auto_now_add=True)
-    statut_paiement = models.CharField(max_length=50, default="EN_ATTENTE")  # EN_ATTENTE, REUSSI, ECHOUE
 
     def __str__(self):
-        return f"Paiement {self.reference_trans or self.id} - {self.statut_paiement}"
+        return f"Paiement {self.transaction_id or self.id} - {self.statut_paiement}"
+
 
 
 

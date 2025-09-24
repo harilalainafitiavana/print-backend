@@ -58,7 +58,7 @@ class FichierAdmin(admin.ModelAdmin):
 @admin.register(Paiement)
 class PaiementAdmin(admin.ModelAdmin):
     list_display = ("commande", "phone", "montant", "statut_paiement", "date_paiement")
-    list_filter = ("statut_paiement",)
+    list_filter = ("statut_paiement", "date_paiement")
     search_fields = ("commande__id", "phone", "reference_trans")
 
 # --------- Chat ----------
