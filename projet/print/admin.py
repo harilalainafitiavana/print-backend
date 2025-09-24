@@ -3,6 +3,7 @@ from .models import (
     Produits, Utilisateurs, ConfigurationImpression,
     Commande, Fichier, Paiement, Chat, Contenir, Communiquer
 )
+from django.contrib.auth.admin import UserAdmin
 
 # --------- Produits ----------
 @admin.register(Produits)
@@ -12,11 +13,25 @@ class ProduitsAdmin(admin.ModelAdmin):
     list_filter = ("categorie",)
 
 # --------- Utilisateurs ----------
-@admin.register(Utilisateurs)
-class UtilisateursAdmin(admin.ModelAdmin):
-    list_display = ("nom", "prenom", "email", "role", "mdp", "date_inscription", "profils")
-    search_fields = ("nom", "prenom", "email")
-    list_filter = ("role",)
+class UtilisateursAdmin(UserAdmin):
+    model = Utilisateurs
+    list_display = ('email', 'nom', 'prenom', 'role', 'is_staff', 'is_active')
+    list_filter = ('role', 'is_staff', 'is_active')
+    search_fields = ('email', 'nom', 'prenom')
+    ordering = ('email',)
+    fieldsets = (
+        (None, {'fields': ('email', 'nom', 'prenom', 'password')}),
+        ('Permissions', {'fields': ('role', 'is_staff', 'is_active', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Important dates', {'fields': ('last_login',)}),
+    )
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('email', 'nom', 'prenom', 'password1', 'password2', 'role', 'is_staff', 'is_active')}
+        ),
+    )
+
+admin.site.register(Utilisateurs, UtilisateursAdmin)
 
 # --------- Configuration Impression ----------
 @admin.register(ConfigurationImpression)

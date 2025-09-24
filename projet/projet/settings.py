@@ -31,6 +31,13 @@ INSTALLED_APPS = [
     'print',
 ]
 
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
+}
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -120,12 +127,27 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# pour ne pas ouvrir l'API à tout le monde
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # React avec Vite
     "http://127.0.0.1:5173",
 ]
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_CREDENTIALS = True # autoriser l’envoi de cookies et headers sensibles (comme le JWT).
 
 MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'
+
+AUTH_USER_MODEL = "print.Utilisateurs"
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',  # Authentification par défaut
+    'print.auth_backend.EmailBackend',  # Votre backend personnalisé
+]
+
+SIMPLE_JWT = {
+    "USER_ID_FIELD": "id", # quel champ du modèle User est utilisé comme identifiant interne dans le token.
+    "USER_ID_CLAIM": "user_id", # comment ce champ sera nommé dans le payload du token JWT
+}
+
+
 

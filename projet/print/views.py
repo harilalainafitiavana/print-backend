@@ -1,9 +1,14 @@
 from rest_framework import viewsets
 from .models import Produits, Utilisateurs
-from .serializers import ProduitsSerializer, UsersList, UtilisateursSerializer
+from .serializers import MyTokenObtainPairSerializer, ProduitsSerializer, UserRegisterSerializer, UsersList
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework_simplejwt.views import TokenObtainPairView 
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import generics
+
 
 # Ici ModelViewSet génère automatiquement les routes pour CRUD: GET/POST/PUT/DELETE
 # GET /api/produits/ → liste les produits
@@ -17,12 +22,14 @@ class ProduitsViewSet(viewsets.ModelViewSet):
 
 
 # Insérer l'utilisateur dans la base c'est une api
-class RegisterView(APIView):
-    def post(self, request):
-        serializer = UtilisateursSerializer(data=request.data)
+class RegisterUserView(generics.CreateAPIView):
+    serializer_class = UserRegisterSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response({"message": "Inscription réussie"}, status=status.HTTP_201_CREATED)
+            return Response({"message": "Utilisateur créé avec succès"}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
@@ -32,3 +39,24 @@ class UsersListView(APIView):
         users = Utilisateurs.objects.all().order_by('-date_inscription')  # derniers inscrits en premier
         serializer = UsersList(users, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+# Token pour le login de connexion
+class MyTokenObtainPairView(TokenObtainPairView):
+    serializer_class = MyTokenObtainPairSerializer
+
+
+# Récuperation des informations de l'utiliateur api
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]  # 🔹 L’utilisateur doit être authentifié
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            "id": user.id,
+            "nom": user.nom,
+            "prenom": user.prenom,
+            "email": user.email,
+            "role": user.role,
+            "profils": user.profils.url if user.profils else None,
+        })
