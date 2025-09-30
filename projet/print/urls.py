@@ -1,8 +1,8 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ProduitsViewSet, RegisterUserView, UsersListView, MyTokenObtainPairView
+from .views import ChangePasswordView, ProduitsViewSet, ProfilView, RegisterUserView, UsersListView, MyTokenObtainPairView, commandes_count_public, download_file
 from rest_framework_simplejwt.views import TokenRefreshView
-from .views import MeView
+from .views import MeView, get_user_commandes
 from . import views
 
 router = DefaultRouter()
@@ -20,4 +20,21 @@ urlpatterns = [
     path('api/me/', MeView.as_view(), name='me'),
     # Route pour créer une commande
     path('api/commande/', views.create_commande, name='create_commande'),
+    # Affiché les commandes
+    path('api/commandes/', get_user_commandes, name='get_user_commandes'),
+    # Supprimer le commande dans la corbeille
+    path('api/commandes/<int:id>/soft_delete/', views.soft_delete_commande),
+    # Récupérer les produits supprimés pour affiché dans la crobeille 
+    path('api/commandes/deleted/', views.get_deleted_commandes),
+    # Restaurer ou supprimer définitivement une commande
+    path('api/commandes/<int:id>/restore/', views.restore_commande),
+    path('api/commandes/<int:id>/delete_forever/', views.delete_commande_forever),
+    # Récupérer tout les commandes côté admin
+    path('api/admin/commandes/', views.get_all_commandes_admin, name='admin_commandes'),
+    path('api/notify/', views.send_notification, name='send_notification'),
+    path('download/<int:fichier_id>/', download_file, name='download_file'),
+    # Modifier le profil de l'utilisateur
+    path('api/profil/', ProfilView.as_view(), name='profil'),
+    path('api/profil/change-password/', ChangePasswordView.as_view(), name="change-password"),
+    path('api/admin/commandes/count/', commandes_count_public, name="nombre-commande")
 ]

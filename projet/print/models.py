@@ -84,6 +84,8 @@ class ConfigurationImpression(models.Model):
     PAPIER_CHOICES = [
         ('glace', 'Papier glacé'),
         ('mat', 'Papier mat'),
+        ('standard', 'Papier standard'),
+        ('brillant', 'Papier brillant'),
     ]
     paper_type = models.CharField(max_length=10, choices=PAPIER_CHOICES, null=True, blank=True)
 
@@ -95,6 +97,8 @@ class ConfigurationImpression(models.Model):
     finish = models.CharField(max_length=10, choices=FINITION_CHOICES, null=True, blank=True)
 
     quantity = models.PositiveIntegerField()
+    
+    options = models.TextField(null=True, blank=True) 
 
     def clean(self):
         if self.quantity <= 0:
@@ -148,6 +152,8 @@ class Commande(models.Model):
     statut = models.CharField(max_length=100, default="en_attente")
     montant_total = models.DecimalField(max_digits=10, decimal_places=2)
     mode_paiement = models.CharField(max_length=155)
+    
+    is_deleted = models.BooleanField(default=False) 
 
     def __str__(self):
         return f"Commande {self.id} - {self.utilisateur}"

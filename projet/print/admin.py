@@ -36,7 +36,7 @@ admin.site.register(Utilisateurs, UtilisateursAdmin)
 # --------- Configuration Impression ----------
 @admin.register(ConfigurationImpression)
 class ConfigurationImpressionAdmin(admin.ModelAdmin):
-    list_display = ("format_type", "small_format", "largeur", "hauteur", "paper_type", "finish", "quantity")
+    list_display = ("format_type", "small_format", "largeur", "hauteur", "paper_type", "finish", "quantity", "duplex", "binding", "cover_paper")
     list_filter = ("format_type", "paper_type", "finish")
     search_fields = ("small_format",)
 
