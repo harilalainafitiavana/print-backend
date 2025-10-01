@@ -22,7 +22,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = Utilisateurs
         # "confirm_password" doit être dans fields
-        fields = ['nom', 'prenom', 'email', 'num_tel', 'password', 'confirm_password', 'profils']
+        fields = ['nom', 'prenom', 'email', 'num_tel', 'code_postal', 'ville', 'pays', 'password', 'confirm_password', 'profils']
 
     def validate_email(self, value):
         if Utilisateurs.objects.filter(email=value).exists():
@@ -57,7 +57,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 class UsersList(serializers.ModelSerializer):
     class Meta:
         model = Utilisateurs
-        fields = ['id', 'nom', 'prenom', 'email', 'num_tel', 'role', 'profils', 'date_inscription']
+        fields = ['id', 'nom', 'prenom', 'email', 'num_tel', 'code_postal', 'ville', 'pays', 'role', 'profils', 'date_inscription']
 
 
 
@@ -135,7 +135,7 @@ class ConfigurationImpressionAdminSerializer(BaseConfigurationImpressionSerializ
     class Meta(BaseConfigurationImpressionSerializer.Meta):
         fields = [
             'id', 'format_type', 'small_format', 'largeur', 'hauteur',
-            'paper_type', 'finish', 'quantity', 'duplex', 'binding',
+            'paper_type', 'book_pages', 'finish', 'quantity', 'duplex', 'binding',
             'cover_paper', 'options'
         ]
 
@@ -186,8 +186,8 @@ class CommandeAdminSerializer(serializers.ModelSerializer):
 class ProfilSerializer(serializers.ModelSerializer):
     class Meta:
         model = Utilisateurs
-        fields = ['nom', 'prenom', 'email', 'num_tel', 'profils']
-        read_only_fields = ['id', 'email'] # L'user n'est pas autorisé de modifier son email
+        fields = ['nom', 'prenom', 'email', 'num_tel', 'code_postal', 'ville', 'pays', 'profils']
+        read_only_fields = ['id', 'email', 'pays'] # L'user n'est pas autorisé de modifier son email et pays
 
     # ✅ Ajouter update pour gérer FormData et fichiers
     def update(self, instance, validated_data):
@@ -195,6 +195,9 @@ class ProfilSerializer(serializers.ModelSerializer):
         instance.prenom = validated_data.get('prenom', instance.prenom)
         instance.email = validated_data.get('email', instance.email)
         instance.num_tel = validated_data.get('num_tel', instance.num_tel)
+        instance.code_postal = validated_data.get('code_postal', instance.code_postal)
+        instance.ville = validated_data.get('ville', instance.ville)
+        instance.pays = validated_data.get('pays', instance.pays)        
 
         # ⚠️ Gestion du fichier
         profils = validated_data.get('profils', None)

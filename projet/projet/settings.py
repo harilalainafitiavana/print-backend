@@ -1,5 +1,6 @@
 
 from pathlib import Path
+from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -153,5 +154,21 @@ SIMPLE_JWT = {
     "USER_ID_CLAIM": "user_id", # comment ce champ sera nommé dans le payload du token JWT
 }
 
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+
+# 🔹 Serveur Gmail
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+
+# 🔹Compte Gmail (expéditeur)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER")
+# ⚠️ IMPORTANT : utilise un "mot de passe d’application" Google
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
+
+# Par défaut, Django utilisera cet expéditeur
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 

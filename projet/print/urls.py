@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ChangePasswordView, ProduitsViewSet, ProfilView, RegisterUserView, UsersListView, MyTokenObtainPairView, commandes_count_public, download_file
+from .views import ChangePasswordView, ProduitsViewSet, ProfilView, RegisterUserView, UsersListView, MyTokenObtainPairView, commande_en_cours, commandes_count_public, download_file, terminer_commande
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import MeView, get_user_commandes
 from . import views
@@ -36,5 +36,9 @@ urlpatterns = [
     # Modifier le profil de l'utilisateur
     path('api/profil/', ProfilView.as_view(), name='profil'),
     path('api/profil/change-password/', ChangePasswordView.as_view(), name="change-password"),
-    path('api/admin/commandes/count/', commandes_count_public, name="nombre-commande")
+    path('api/admin/commandes/count/', commandes_count_public, name="nombre-commande"),
+    # Permet d'envoyé la notification aux utilisateur que son commande est prêt à livré
+    path("api/commandes/<int:commande_id>/terminer/", terminer_commande, name="terminer_commande"),
+    # Permet d'envoyé la notification aux utilisateur que son commande est en cours de traitement
+    path("api/commandes/<int:commande_id>/encours/", commande_en_cours, name="commande_en_cours")
 ]

@@ -41,6 +41,9 @@ class Utilisateurs(AbstractBaseUser, PermissionsMixin):
     prenom = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
     num_tel = models.CharField(max_length=10, blank=True, null=True)
+    code_postal = models.CharField(max_length=150, blank=True, null=True) 
+    ville = models.CharField(max_length=150, default='Antananarivo')        
+    pays = models.CharField(max_length=100, default='Madagascar') 
     role = models.CharField(max_length=20, default='USER')  # USER ou ADMIN
     date_inscription = models.DateTimeField(auto_now_add=True)
     profils = models.ImageField(upload_to='Profiluser/', null=True, blank=True)
@@ -80,6 +83,9 @@ class ConfigurationImpression(models.Model):
 
     largeur = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     hauteur = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+
+    book_pages = models.PositiveIntegerField(null=True, blank=True)
+    is_book = models.BooleanField(default=False)
 
     PAPIER_CHOICES = [
         ('glace', 'Papier glacé'),
@@ -146,10 +152,18 @@ class ConfigurationImpression(models.Model):
 # Commande
 # -----------------------------
 class Commande(models.Model):
+    STATUT_CHOICES = [
+        ('EN_ATTENTE', 'En attente'),
+        ('RECU', 'Commande reçue'),
+        ('EN_COURS_IMPRESSION', 'En cours d’impression'),
+        ('TERMINE', 'Impression terminée'),
+        ('EN_COURS_LIVRAISON', 'En cours de livraison'),
+        ('LIVREE', 'Livrée'),
+    ]
     utilisateur = models.ForeignKey("Utilisateurs", on_delete=models.CASCADE)
     configuration = models.OneToOneField(ConfigurationImpression, on_delete=models.CASCADE)
     date_commande = models.DateTimeField(auto_now_add=True)
-    statut = models.CharField(max_length=100, default="en_attente")
+    statut = models.CharField(max_length=30, choices=STATUT_CHOICES, default="EN_ATTENTE")
     montant_total = models.DecimalField(max_digits=10, decimal_places=2)
     mode_paiement = models.CharField(max_length=155)
     
@@ -159,33 +173,38 @@ class Commande(models.Model):
         return f"Commande {self.id} - {self.utilisateur}"
 
     def calculer_montant(self):
-        """Calcule le montant total selon la configuration impression"""
         config = self.configuration
-
-        # ⚠️ Tu peux modifier ces prix sans migration
-        prix_par_m2 = Decimal("5000.00")
-        prix_formats = {
-            "A3": Decimal("1000.00"),
-            "A4": Decimal("500.00"),
-            "A5": Decimal("300.00"),
-            "A6": Decimal("200.00"),
+        prix_par_page = {
+            "A3": Decimal("1000"),
+            "A4": Decimal("500"),
+            "A5": Decimal("300"),
+            "A6": Decimal("200"),
         }
+        prix_grand = Decimal("5000")
+        duplex_multiplier = Decimal("1.2") if config.duplex == "recto_verso" else Decimal("1")
+        binding_price = Decimal("0")
+        if config.binding == "spirale": binding_price = 2000
+        if config.binding == "dos_colle": binding_price = 3000
+        if config.binding == "agrafé": binding_price = 1000
+        cover_price = Decimal("0")
+        if config.cover_paper == "photo": cover_price = 3000
+        if config.cover_paper == "simple": cover_price = 1000
+        delivery_fee = 5000
 
-        if config.format_type == "grand":
-            surface = (config.largeur / 100) * (config.hauteur / 100)  # cm → m
-            if surface < 1:
-                surface = Decimal("1.00")  # min 1 m²
-            montant = surface * prix_par_m2 * config.quantity
-        elif config.format_type == "petit":
-            if config.small_format == "custom":
-                surface = (config.largeur / 100) * (config.hauteur / 100)
-                montant = surface * prix_par_m2 * config.quantity
-            else:
-                montant = prix_formats.get(config.small_format, Decimal("0")) * config.quantity
+        if config.is_book and config.book_pages:
+            pages_total = prix_par_page.get(config.small_format, prix_grand) * config.book_pages
+            options_total = (binding_price + cover_price) * config.quantity
+            montant = (pages_total * config.quantity + options_total) * duplex_multiplier + delivery_fee
         else:
-            montant = Decimal("0")
+            if config.format_type == "petit":
+                base_price = prix_par_page.get(config.small_format, 200)
+            else:
+                surface = max((config.largeur / 100) * (config.hauteur / 100), 1)
+                base_price = surface * prix_grand
+            montant = (base_price * config.quantity * duplex_multiplier + binding_price + cover_price + delivery_fee)
 
         return montant
+
 
     def save(self, *args, **kwargs):
         self.montant_total = self.calculer_montant()  # recalcul automatique

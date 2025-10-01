@@ -15,7 +15,7 @@ class ProduitsAdmin(admin.ModelAdmin):
 # --------- Utilisateurs ----------
 class UtilisateursAdmin(UserAdmin):
     model = Utilisateurs
-    list_display = ('email', 'nom', 'prenom', 'role', 'is_staff', 'is_active')
+    list_display = ('email', 'nom', 'prenom', 'role', 'is_staff', 'is_active', 'code_postal', 'ville', 'pays')
     list_filter = ('role', 'is_staff', 'is_active')
     search_fields = ('email', 'nom', 'prenom')
     ordering = ('email',)
