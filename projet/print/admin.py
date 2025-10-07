@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    Produits, Utilisateurs, ConfigurationImpression,
+    Notification, Produits, Utilisateurs, ConfigurationImpression,
     Commande, Fichier, Paiement, Chat, Contenir, Communiquer
 )
 from django.contrib.auth.admin import UserAdmin
@@ -83,3 +83,11 @@ class ContenirAdmin(admin.ModelAdmin):
 class CommuniquerAdmin(admin.ModelAdmin):
     list_display = ("utilisateur", "message")
     search_fields = ("utilisateur__nom", "message__message")
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user','sender', 'message', 'is_read', 'created_at')  # colonnes visibles dans la liste
+    list_filter = ('is_read', 'created_at')  # filtres sur le côté
+    search_fields = ('user__nom', 'user__prenom', 'user__email', 'message')  # barre de recherche
+    readonly_fields = ('created_at',)  # champ en lecture seule

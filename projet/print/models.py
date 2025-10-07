@@ -286,3 +286,16 @@ class Communiquer(models.Model):
     class Meta:
         unique_together = ("utilisateur", "message")
 
+
+class Notification(models.Model):
+    sender = models.ForeignKey(Utilisateurs, on_delete=models.CASCADE, related_name="sent_notifications", null=True, blank=True)
+    user = models.ForeignKey(Utilisateurs, on_delete=models.CASCADE, related_name="notifications")
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_deleted = models.BooleanField(default=False)
+
+    def __str__(self):
+        sender_name = f"{self.sender.nom} {self.sender.prenom}" if self.sender else "Admin"
+        user_name = f"{self.user.nom} {self.user.prenom}" if self.user else "Utilisateur inconnu"
+        return f"Notification de {sender_name} à {user_name}"

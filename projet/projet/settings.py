@@ -137,6 +137,14 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # React avec Vite
     "http://127.0.0.1:5173",
 ]
+
+
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "authorization",
+]
+
 CORS_ALLOW_CREDENTIALS = True # autoriser l’envoi de cookies et headers sensibles (comme le JWT).
 
 MEDIA_ROOT = BASE_DIR / 'media'

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Produits, Utilisateurs, Commande, ConfigurationImpression, Fichier, Paiement
+from .models import Notification, Produits, Utilisateurs, Commande, ConfigurationImpression, Fichier, Paiement
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
@@ -210,6 +210,35 @@ class ProfilSerializer(serializers.ModelSerializer):
 
 
 # Envoyer des notifications
-class NotificationSerializer(serializers.Serializer):
-    userId = serializers.IntegerField()
-    message = serializers.CharField(max_length=500)
+class UserMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Utilisateurs
+        fields = ['id', 'nom', 'prenom', 'email']
+
+class NotificationSerializer(serializers.ModelSerializer):
+    sender_info = serializers.SerializerMethodField()  # info de celui qui a envoyé
+    recipient_info = serializers.SerializerMethodField()  # info du destinataire
+
+    class Meta:
+        model = Notification
+        fields = ['id', 'message', 'created_at', 'sender_info', 'recipient_info']
+
+    def get_sender_info(self, obj):
+        if obj.sender:
+            return {
+                'id': obj.sender.id,
+                'nom': obj.sender.nom,
+                'prenom': obj.sender.prenom,
+                'email': obj.sender.email,
+            }
+        return None
+
+    def get_recipient_info(self, obj):
+        if obj.user:
+            return {
+                'id': obj.user.id,
+                'nom': obj.user.nom,
+                'prenom': obj.user.prenom,
+                'email': obj.user.email,
+            }
+        return None
