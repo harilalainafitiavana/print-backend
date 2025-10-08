@@ -17,7 +17,7 @@ from django.shortcuts import get_object_or_404
 import threading
 from django.core.mail import send_mail
 from django.conf import settings
-from django.db.models import Count, Sum
+from django.db.models import Count, Sum, F, Value
 from django.db.models.functions import TruncMonth
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
@@ -30,7 +30,7 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 from django.utils.http import urlsafe_base64_decode
 import re
-
+# from django.db.models.functions import Func
 # Ici ModelViewSet génère automatiquement les routes pour CRUD: GET/POST/PUT/DELETE
 # GET /api/produits/ → liste les produits
 # POST /api/produits/ → ajoute un produit
@@ -466,6 +466,7 @@ def terminer_commande(request, commande_id):
                 f"- Nombre de pages : {nombre_pages}\n"
                 f"- Format : {format_type} ({small_format})\n"
                 f"- Fichier : {nom_fichier} ({format_fichier}, {resolution} dpi)\n\n"
+                f"Nous vous envoyez une message à votre numéro téléphone pour la livraison\n"
                 f"Merci pour votre confiance 🙏"
             ),
             from_email=settings.DEFAULT_FROM_EMAIL,
@@ -748,7 +749,6 @@ def user_dashboard_stats(request):
 
 # Fonction pour l'envoie du lien vers l'email
 
-
 # Générateur de token sécurisé pour la réinitialisation
 token_generator = PasswordResetTokenGenerator()
 
@@ -830,7 +830,6 @@ def mot_de_passe_oublie(request):
 # Générateur de token sécurisé 
 token_generator = PasswordResetTokenGenerator()
 
-
 @csrf_exempt  # ⚠️ CSRF désactivé pour le dev (React + localhost)
 def reinitialiser_mot_de_passe(request, uidb64, token):
 
@@ -888,3 +887,105 @@ def reinitialiser_mot_de_passe(request, uidb64, token):
         # 🚨 Gestion des erreurs inattendues
         print("Erreur inattendue:", e)
         return JsonResponse({"error": "Une erreur interne est survenue."}, status=500)
+
+
+
+# Tableau de bord côté admin
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_dashboard_stats(request):
+    # Statistiques globales
+    total_utilisateurs = Utilisateurs.objects.count()
+    total_commandes = Commande.objects.count()
+    total_produits = Produits.objects.count()
+    total_fichiers = Fichier.objects.count()
+    total_revenu = Commande.objects.aggregate(total=Sum('montant_total'))['total'] or 0
+
+    # Commandes par statut
+    commandes_par_statut = (
+        Commande.objects
+        .values('statut')
+        .annotate(count=Count('id'))
+        .order_by('statut')
+    )
+
+    # ✅ Commandes par mois (6 derniers mois)
+    commandes_par_mois = (
+        Commande.objects
+        .annotate(mois=TruncMonth('date_commande'))
+        .values('mois')
+        .annotate(nombre=Count('id'))
+        .order_by('mois')
+    )
+
+    # Dernières commandes
+    dernieres_commandes = (
+        Commande.objects
+        .select_related('utilisateur')
+        .order_by('-date_commande')[:5]
+        .values(
+            'id',
+            'utilisateur__nom',
+            'utilisateur__prenom',
+            'statut',
+            'montant_total',
+            'date_commande'
+        )
+    )
+
+    # Utilisateurs récents
+    utilisateurs_recents = (
+        Utilisateurs.objects
+        .order_by('-date_inscription')[:5]
+        .values('nom', 'prenom', 'email', 'date_inscription')
+    )
+
+    return Response({
+        "totaux": {
+            "utilisateurs": total_utilisateurs,
+            "commandes": total_commandes,
+            "produits": total_produits,
+            "fichiers": total_fichiers,
+            "revenu": total_revenu
+        },
+        "commandes_par_statut": list(commandes_par_statut),
+        "commandes_par_mois": list(commandes_par_mois),
+        "dernieres_commandes": list(dernieres_commandes),
+        "utilisateurs_recents": list(utilisateurs_recents)
+    })
+
+
+# Changé le status de la commande@api_view(['POST'])
+@csrf_exempt
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def changer_statut_commande(request, commande_id):
+    """
+    Mettre à jour le statut d'une commande.
+    L'email sera envoyé automatiquement selon ta logique existante.
+    """
+    commande = get_object_or_404(Commande, id=commande_id)
+    nouveau_statut = request.data.get('statut')
+
+    statuts_valides = [
+        'EN_ATTENTE',
+        'RECU',
+        'EN_COURS_IMPRESSION',
+        'TERMINE',
+        'EN_COURS_LIVRAISON',
+        'LIVREE'
+    ]
+
+    if nouveau_statut not in statuts_valides:
+        return Response({"error": "Statut invalide"}, status=400)
+
+    commande.statut = nouveau_statut
+    commande.save()  # ton trigger d'envoi d'email existant s'exécutera ici si prévu
+
+    return Response({
+        "message": f"Statut changé en {commande.get_statut_display()}",
+        "commande": {
+            "id": commande.id,
+            "statut": commande.statut
+        }
+    })

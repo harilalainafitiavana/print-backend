@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ChangePasswordView, ProduitsViewSet, ProfilView, RegisterUserView, UsersListView, MyTokenObtainPairView, commande_en_cours, commandes_count_public, delete_notification_forever, download_file, get_deleted_notifications, mark_notifications_read, notifications_admin, restore_notification, send_notification_admin, send_notification_user, soft_delete_notification, terminer_commande, unread_count, user_notifications
+from .views import ChangePasswordView, ProduitsViewSet, ProfilView, RegisterUserView, UsersListView, MyTokenObtainPairView, admin_dashboard_stats, changer_statut_commande, commande_en_cours, commandes_count_public, delete_notification_forever, download_file, get_deleted_notifications, mark_notifications_read, notifications_admin, restore_notification, send_notification_admin, send_notification_user, soft_delete_notification, terminer_commande, unread_count, user_dashboard_stats, user_notifications
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import MeView, get_user_commandes
 from . import views
@@ -66,4 +66,11 @@ urlpatterns = [
     path("api/mot-de-passe-oublie/", views.mot_de_passe_oublie, name="mot_de_passe_oublie"),
     # Réinitialisé le mot de passe
     path("api/reinitialiser-mot-de-passe/<uidb64>/<token>/", views.reinitialiser_mot_de_passe, name="reinitialiser_mot_de_passe"),
+    # Pour affiché un tableau de bord côté utilisteur
+    path("api/user/dashboard-stats/", user_dashboard_stats, name="user_stats"),
+    # Pour affiché un tableau de bord côté admin
+    path('api/admin/dashboard/', admin_dashboard_stats, name='admin-dashboard'),
+    # Modifié le status de la commande
+    path("commandes/<int:commande_id>/update_statut/", changer_statut_commande),
+
 ]    

@@ -179,4 +179,3 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
 # Par défaut, Django utilisera cet expéditeur
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
-
