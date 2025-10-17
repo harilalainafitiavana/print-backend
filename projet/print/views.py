@@ -30,6 +30,9 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 from django.utils.http import urlsafe_base64_decode
 import re
+from django.db.models import Q
+from rest_framework_simplejwt.tokens import RefreshToken
+
 # from django.db.models.functions import Func
 # Ici ModelViewSet génère automatiquement les routes pour CRUD: GET/POST/PUT/DELETE
 # GET /api/produits/ → liste les produits
@@ -99,7 +102,6 @@ class MeView(APIView):
 
 
 # backend/print/views.py
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_commande(request):
@@ -269,7 +271,6 @@ def get_user_commandes(request):
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-
 # Deplacer la commande dans la corbeil côté admin/user
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -288,7 +289,6 @@ def soft_delete_commande(request, id):
         return Response({"success": False, "message": "Commande introuvable"}, status=404)
 
     
-
 # Récupérer les commandes dans la corbeille restaurer côté admin/user
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -987,5 +987,71 @@ def changer_statut_commande(request, commande_id):
         "commande": {
             "id": commande.id,
             "statut": commande.statut
+        }
+    })
+
+# Recherche des produits
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def search_products(request):
+    query = request.GET.get('search', '').strip()
+    results = []
+
+    if query:
+        # Recherche dans name, description, categorie
+        produits_name = Produits.objects.filter(name__icontains=query)
+        produits_description = Produits.objects.filter(description__icontains=query)
+        produits_categorie = Produits.objects.filter(categorie__icontains=query)
+
+        # On peut créer des "tags" pour savoir d'où vient la correspondance
+        for p in produits_name:
+            results.append({**ProduitsSerializer(p).data, "match": "name"})
+        for p in produits_description:
+            results.append({**ProduitsSerializer(p).data, "match": "description"})
+        for p in produits_categorie:
+            results.append({**ProduitsSerializer(p).data, "match": "categorie"})
+
+        # Supprimer les doublons (même id)
+        seen_ids = set()
+        filtered_results = []
+        for item in results:
+            if item["id"] not in seen_ids:
+                filtered_results.append(item)
+                seen_ids.add(item["id"])
+        results = filtered_results
+
+    serializer = ProduitsSerializer(results[:5], many=False)  # max 5 suggestions
+    return Response(results)
+
+
+# Connexion avec compte google@api_view(['POST'])
+@api_view(['POST'])
+@permission_classes([AllowAny])  # ✅ Important : tout le monde peut accéder
+def google_login(request):
+    email = request.data.get('email')
+    nom = request.data.get('nom', 'Utilisateur')
+    prenom = request.data.get('prenom', '')
+
+    if not email:
+        return Response({"error": "Email manquant"}, status=400)
+
+    user, created = Utilisateurs.objects.get_or_create(
+        email=email,
+        defaults={
+            "nom": nom,
+            "prenom": prenom,
+            "profils": None  # temporaire pour éviter l'erreur 400
+        }
+    )
+
+    refresh = RefreshToken.for_user(user)
+    return Response({
+        "access": str(refresh.access_token),
+        "refresh": str(refresh),
+        "user": {
+            "email": user.email,
+            "nom": user.nom,
+            "prenom": user.prenom,
+            "role": user.role,
         }
     })

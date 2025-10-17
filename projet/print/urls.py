@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ChangePasswordView, ProduitsViewSet, ProfilView, RegisterUserView, UsersListView, MyTokenObtainPairView, admin_dashboard_stats, changer_statut_commande, commande_en_cours, commandes_count_public, delete_notification_forever, download_file, get_deleted_notifications, mark_notifications_read, notifications_admin, restore_notification, send_notification_admin, send_notification_user, soft_delete_notification, terminer_commande, unread_count, user_dashboard_stats, user_notifications
+from .views import ChangePasswordView, ProduitsViewSet, ProfilView, RegisterUserView, UsersListView, MyTokenObtainPairView, admin_dashboard_stats, changer_statut_commande, commande_en_cours, commandes_count_public, delete_notification_forever, download_file, get_deleted_notifications, google_login, mark_notifications_read, notifications_admin, restore_notification, search_products, send_notification_admin, send_notification_user, soft_delete_notification, terminer_commande, unread_count, user_dashboard_stats, user_notifications
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import MeView, get_user_commandes
 from . import views
@@ -72,5 +72,9 @@ urlpatterns = [
     path('api/admin/dashboard/', admin_dashboard_stats, name='admin-dashboard'),
     # Modifié le status de la commande
     path("commandes/<int:commande_id>/update_statut/", changer_statut_commande),
+    # Recherche
+    path('api/search-produits/', search_products, name='search-produits'),
+    # Login avec compte e-mail
+    path('api/google-login/', google_login, name='google-login'),
 
 ]    
