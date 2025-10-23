@@ -32,6 +32,10 @@ from django.utils.http import urlsafe_base64_decode
 import re
 from django.db.models import Q
 from rest_framework_simplejwt.tokens import RefreshToken
+import os
+import time
+from decouple import config
+from transformers import pipeline, AutoTokenizer, AutoModelForQuestionAnswering
 
 # from django.db.models.functions import Func
 # Ici ModelViewSet génère automatiquement les routes pour CRUD: GET/POST/PUT/DELETE
@@ -1055,3 +1059,633 @@ def google_login(request):
             "role": user.role,
         }
     })
+
+
+
+# Chat bot
+# =========================================================
+# 🔹 Chatbot Print.mg — Version Élégante Française
+# =========================================================
+
+
+# =========================================================
+# 🔹 Contexte général Print.mg
+# =========================================================
+CONTEXT = """
+Print.mg est votre plateforme d'impression de confiance à Madagascar 🖨️.
+Nous spécialisons dans l'impression de qualité pour :
+- Livres, documents et rapports
+- Supports marketing et publicitaires
+- Brochures, flyers et affiches
+- Cartes de visite et supports professionnels
+
+Informations importantes :
+• Livraison : 5 000 Ar (gratuite dès 200 000 Ar d'achat) 🚚
+• Formats : A3 (1 000 Ar), A4 (500 Ar), A5 (300 Ar)
+• Reliures : Spirale (2 000 Ar), Perfect binding (3 000 Ar)
+• Paiement : Mvola ou à la livraison
+"""
+
+# =========================================================
+# 🔹 Réponses automatiques ÉLÉGANTES
+# =========================================================
+AUTOMATIC_ANSWERS = {
+    "bonjour": "✨ Bonjour ! Je suis ravi de vous accueillir sur Print.mg 😊\nComment puis-je vous accompagner aujourd'hui ?",
+    "salut": "👋 Salut ! Chez Print.mg, nous sommes à votre service.\nQue souhaitez-vous savoir ?",
+    "coucou": "😀 Coucou ! Bienvenue sur Print.mg, votre expert en impression.\nComment puis-vous aider votre projet ?",
+    "bonsoir": "🌙 Bonsoir ! Print.mg vous souhaite une excellente soirée.\nEn quoi puis-je vous être utile ?",
+    "merci": "😊 C'est un plaisir de vous aider ! Souhaitez-vous découvrir nos produits ou passer commande ?",
+    "merci beaucoup": "🙏 Je vous en prie ! Merci à vous pour votre confiance en Print.mg.\nExcellente journée à vous !",
+    "ok": "☺️ Parfait ! N'hésitez pas si d'autres questions surgissent,\nje reste à votre disposition.",
+    "au revoir": "👋 Au revoir ! Merci d'avoir choisi Print.mg.\nÀ très bientôt pour vos projets d'impression !",
+    "bye": "👋 À bientôt ! Merci pour votre visite sur Print.mg 🌟",
+    "commande": (
+        "🎉 **Voici comment passer commande sur Print.mg** 🖨️ :\n\n"
+        "1️⃣ **Connexion** : Accédez à votre espace client\n"
+        "2️⃣ **Téléversement** : Importez vos fichiers à imprimer\n"
+        "3️⃣ **Personnalisation** : Choisissez format, finition, quantité\n"
+        "4️⃣ **Devis** : Visualisez le prix instantanément\n"
+        "5️⃣ **Livraison** : Sélectionnez votre mode de réception\n"
+        "6️⃣ **Paiement** : Finalisez par Mvola ou à la livraison\n\n"
+        "Prêt à donner vie à votre projet ? ✨"
+    ),
+    "livraison": (
+        "🚚 **Informations de livraison Print.mg** :\n\n"
+        "• **Zone Antananarivo** : 5 000 Ar\n"
+        "• **Gratuite** dès 200 000 Ar d'achat ✅\n"
+        "• **Suivi** : Accompagnement de votre commande\n"
+        "• **Professionnalisme** : Livraison soignée et sécurisée"
+    ),
+}
+
+BOOK_PRICES_MESSAGE = """📖 **Tarifs détaillés pour les livres** :
+
+🖼️ **Formats** :
+• A3 : 1 000 Ar
+• A4 : 500 Ar  
+• A5 : 300 Ar
+• Large format : 5 000 Ar
+
+📚 **Reliures** :
+• Spirale : 2 000 Ar
+• Perfect binding : 3 000 Ar
+• Agrafée : 1 000 Ar
+
+🛡️ **Couvertures** :
+• Papier photo : 3 000 Ar
+• Simple : 1 000 Ar
+• Double face : Sur devis
+
+🚚 **Livraison** : 5 000 Ar (Antananarivo)
+"""
+
+# =========================================================
+# 🔹 Mots-clés
+# =========================================================
+COMMAND_KEYWORDS = ["commande", "acheter", "achat", "passer commande", "commander"]
+PRICE_KEYWORDS = ["prix", "combien", "tarif", "coût", "montant", "argent"]
+PRODUCT_KEYWORDS = ["produit", "offre", "impression", "service", "imprimer"]
+DELIVERY_KEYWORDS = ["livraison", "livrer", "expédition", "délai", "livreur"]
+POLITE_KEYWORDS = ["bonjour", "salut", "bonsoir", "coucou", "merci", "ok", "bye", "au revoir", "merci beaucoup"]
+SUIVI_KEYWORDS = ["suivi", "suivre", "statut", "où est", "état", "tracking", "numéro de commande"]
+
+# =========================================================
+# 🔹 Modèle Français Élégant - REMPLACE MISTRAL
+# =========================================================
+def get_hf_token():
+    """Récupère le token Hugging Face de manière sécurisée"""
+    token = config("HF_TOKEN", default="")
+    
+    if not token:
+        print("⚠️  HF_TOKEN non configuré dans le fichier .env")
+        return ""
+    
+    return token
+
+def ask_elegant_french_ai(question: str):
+    """Appel à un modèle français élégant sur Hugging Face"""
+    
+    # 🔥 MODÈLES FRANÇAIS RECOMMANDÉS (choisissez-en un)
+    API_URL = "https://api-inference.huggingface.co/models/asi/gpt-fr-cased-base"
+    # API_URL = "https://api-inference.huggingface.co/models/babelscape/rebel-large-french"
+    
+    HF_TOKEN = get_hf_token()
+    
+    if not HF_TOKEN:
+        return get_elegant_fallback(question)
+    
+    headers = {
+        "Authorization": f"Bearer {HF_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    # 🎯 PROMPT ÉLÉGANT ET POLI
+    prompt = f"""
+    [ROLE] Vous êtes l'assistant virtuel de Print.mg, plateforme d'impression malgache.
+    
+    [STYLE] 
+    - Ton : chaleureux, professionnel et élégant
+    - Langage : français poli et courtois
+    - Structure : phrases fluides et naturelles
+    - Emojis : utilisés avec modération (1-2 max)
+    - Longueur : 2-4 phrases maximum
+    
+    [CONTEXTE PRINT.MG]
+    Print.mg est votre partenaire d'impression à Madagascar.
+    Services : impression de livres, documents, supports marketing.
+    Livraison : 5 000 Ar Antananarivo (gratuite >200 000 Ar).
+    Prix livre : A4=500Ar, A3=1000Ar, A5=300Ar.
+    Reliure : Spirale=2000Ar, Perfect binding=3000Ar.
+    
+    [QUESTION] {question}
+    
+    [RÉPONSE ÉLÉGANTE]
+    """
+    
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 200,
+            "temperature": 0.7,
+            "do_sample": True,
+            "top_p": 0.9,
+            "repetition_penalty": 1.2
+        }
+    }
+
+    try:
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
+        
+        # Gestion des erreurs HTTP
+        if response.status_code == 401:
+            return "🔐 Erreur d'authentification. Token Hugging Face invalide."
+        elif response.status_code == 503:
+            return get_elegant_fallback(question)
+        elif response.status_code != 200:
+            return get_elegant_fallback(question)
+        
+        data = response.json()
+
+        if isinstance(data, dict) and data.get("error"):
+            return get_elegant_fallback(question)
+
+        if isinstance(data, list) and len(data) > 0:
+            text = data[0].get("generated_text", "")
+            
+            # Extraire la réponse après le marqueur
+            if "RÉPONSE ÉLÉGANTE]" in text:
+                answer = text.split("RÉPONSE ÉLÉGANTE]")[-1].strip()
+            else:
+                answer = text.strip()
+            
+            # Nettoyer la réponse
+            answer = _clean_response(answer)
+            
+            # Valider que c'est une bonne réponse française
+            if answer and _is_good_french_response(answer):
+                return answer
+        
+        return get_elegant_fallback(question)
+        
+    except Exception as e:
+        print("Erreur API French AI:", e)
+        return get_elegant_fallback(question)
+
+def _clean_response(text: str) -> str:
+    """Nettoyer la réponse pour plus d'élégance"""
+    # Supprimer les répétitions de prompt
+    text = text.split("[QUESTION]")[0].strip()
+    text = text.split("[SYSTÈME]")[0].strip()
+    
+    # Capitaliser la première lettre
+    if text and len(text) > 0:
+        text = text[0].upper() + text[1:]
+    
+    return text
+
+def _is_good_french_response(text: str) -> bool:
+    """Vérifier que la réponse est de bonne qualité française"""
+    if len(text.strip()) < 10:
+        return False
+    
+    # Vérifier la structure de phrase
+    has_punctuation = any(punc in text for punc in ['.', '!', '?', '\n'])
+    has_french_words = any(word in text.lower() for word in ['le', 'la', 'les', 'de', 'des', 'notre', 'vos'])
+    
+    return has_punctuation and (has_french_words or len(text.split()) > 5)
+
+# =========================================================
+# 🔹 Fonctions utilitaires AMÉLIORÉES
+# =========================================================
+def detect_intent(question: str):
+    q = question.lower()
+    for key in COMMAND_KEYWORDS:
+        if key in q: return "commande"
+    for key in PRICE_KEYWORDS:
+        if key in q: return "prix"
+    for key in PRODUCT_KEYWORDS:
+        if key in q: return "produit"
+    for key in DELIVERY_KEYWORDS:
+        if key in q: return "livraison"
+    for key in SUIVI_KEYWORDS:
+        if key in q: return "suivi"
+    for key in POLITE_KEYWORDS:
+        if key in q: return key
+    return None
+
+def get_all_products_with_prices():
+    produits = Produits.objects.all()
+    if not produits.exists():
+        return "📦 **Nos services Print.mg** :\n\n• Impression de livres et documents\n• Supports marketing et publicitaires\n• Brochures et flyers professionnels\n\n🚚 Livraison : 5 000 Ar (gratuite >200 000 Ar)"
+    
+    message = "💰 **Nos produits et tarifs** :\n\n"
+    for idx, p in enumerate(produits, start=1):
+        message += f"• **{p.name}** : {p.prix:.0f} Ar\n"
+    
+    message += "\n🚚 **Livraison** : 5 000 Ar pour Antananarivo"
+    message += "\n" + BOOK_PRICES_MESSAGE
+    return message
+
+def get_price_for_product(question):
+    produits = Produits.objects.all()
+    q = question.lower()
+    for p in produits:
+        if p.name.lower() in q:
+            return f"💵 **{p.name}** est à **{p.prix:.0f} Ar**.\n\nSouhaitez-vous des informations sur la commande ? 😊"
+    return None
+
+def get_elegant_fallback(question: str):
+    """Fallback avec des réponses élégantes pré-définies"""
+    q = question.lower()
+    
+    # 🔥 RÉPONSES ÉLÉGANTES CONTEXTUELLES
+    if "print.mg" in q or "printmg" in q or "c'est quoi print" in q:
+        return (
+            "✨ **Print.mg** est votre partenaire d'impression de confiance à Madagascar !\n\n"
+            "Nous nous spécialisons dans :\n"
+            "• 📚 Livres et documents de qualité\n"
+            "• 🎨 Supports marketing percutants\n"
+            "• 📄 Brochures et flyers professionnels\n\n"
+            "Avec livraison sur Antananarivo et un service personnalisé 🚚"
+        )
+    elif "qui êtes" in q or "qui es" in q or "tu es qui" in q:
+        return (
+            "👋 Je suis l'assistant virtuel de Print.mg !\n\n"
+            "Je suis ici pour vous accompagner dans vos projets d'impression, "
+            "vous renseigner sur nos tarifs et vous guider dans vos commandes.\n\n"
+            "Comment puis-je vous être utile aujourd'hui ? 😊"
+        )
+    elif "service" in q or "offre" in q or "propos" in q:
+        return (
+            "🎯 **Print.mg vous propose** :\n\n"
+            "• Impression de livres et documents\n"
+            "• Création de supports marketing\n"
+            "• Brochures, flyers et affiches\n"
+            "• Livraison professionnelle\n\n"
+            "Quel projet souhaitez-vous concrétiser ?"
+        )
+    elif any(word in q for word in PRICE_KEYWORDS):
+        return (
+            "💰 **Nos tarifs transparents** :\n\n"
+            "Voici nos principaux prix pour vous orienter :\n\n"
+            "📄 **Formats Papier**\n"
+            "• A3 : 1 000 Ar\n"
+            "• A4 : 500 Ar\n"
+            "• A5 : 300 Ar\n\n"
+            "📚 **Reliures**\n"
+            "• Spirale : 2 000 Ar\n"
+            "• Perfect binding : 3 000 Ar\n\n"
+            "🚚 **Livraison** : 5 000 Ar (gratuite >200 000 Ar)\n\n"
+            "Souhaitez-vous un devis personnalisé ? 😊"
+        )
+    elif any(word in q for word in COMMAND_KEYWORDS):
+        return AUTOMATIC_ANSWERS["commande"]
+    elif any(word in q for word in DELIVERY_KEYWORDS):
+        return AUTOMATIC_ANSWERS["livraison"]
+    
+    # Réponse générique élégante
+    return (
+        "🤗 Je suis ravi de vous aider chez Print.mg !\n\n"
+        "Je peux vous renseigner sur :\n"
+        "• 📋 Le processus de commande\n"
+        "• 💰 Nos tarifs compétitifs\n"
+        "• 📦 Nos produits et services\n"
+        "• 🚚 Les options de livraison\n\n"
+        "Que souhaitez-vous savoir ? ✨"
+    )
+
+# =========================================================
+# 🔹 FONCTIONS MANQUANTES - À AJOUTER
+# =========================================================
+
+def is_complex_question(question: str) -> bool:
+    """Détecte si la question nécessite une réponse complexe (IA)"""
+    q = question.lower()
+    
+    # Indicateurs de questions complexes
+    complex_indicators = [
+        "différence entre", "quel est le meilleur", "conseillez", "recommandez",
+        "problème", "erreur", "comment optimiser", "quelle qualité", 
+        "délai", "urgence", "hors d'antananarivo", "en dehors de",
+        "spécial", "personnalisé", "sur mesure", "option", "alternative",
+        "résolution", "marges", "relecture", "correction", "horaires",
+        "calcul", "estimation", "combien coûterait", "quel serait le prix",
+        "100 pages", "200 pages", "50 pages", "couverture rigide", "reliure spirale"
+    ]
+    
+    # Questions avec calcul de prix personnalisé
+    has_custom_calculation = (
+        any(page in q for page in ["100 pages", "200 pages", "50 pages", "pages"]) and 
+        any(format_word in q for format_word in ["a4", "a3", "a5"]) and
+        any(binding in q for binding in ["spirale", "perfect", "reliure"])
+    )
+    
+    # Questions longues (>8 mots) souvent complexes
+    is_long_question = len(question.split()) > 8
+    
+    # Questions avec plusieurs aspects
+    has_multiple_aspects = any([
+        " et " in q and ("prix" in q or "coût" in q or "délai" in q),
+        " mais " in q,
+        " cependant " in q,
+        " par contre " in q
+    ])
+    
+    return (any(indicator in q for indicator in complex_indicators) 
+            or is_long_question 
+            or has_multiple_aspects
+            or has_custom_calculation)
+
+def get_detailed_fallback(question: str):
+    """Fallback ultra-détaillé pour chaque type de question complexe"""
+    q = question.lower()
+    
+    # 🔥 RÉPONSES SPÉCIFIQUES POUR CHAQUE QUESTION COMPLEXE
+    
+    # 1. Calcul de prix pour livre personnalisé
+    if any(word in q for word in ["100 pages", "200 pages", "50 pages", "pages"]) and "livre" in q:
+        if "a4" in q and "spirale" in q:
+            return ("📚 Pour un livre de 100 pages A4 avec reliure spirale :\n\n"
+                   "• 100 pages A4 : 50 000 Ar (500 Ar/page)\n"
+                   "• Reliure spirale : 2 000 Ar\n"
+                   "• Couverture rigide : 3 000 Ar\n"
+                   "• **Total estimé : 55 000 Ar**\n\n"
+                   "Délai : 3-5 jours ouvrés. Souhaitez-vous un devis exact ? 😊")
+    
+    # 2. Différence entre reliures
+    if "différence" in q and ("spirale" in q or "perfect" in q):
+        return ("📖 **Différence entre reliures** :\n\n"
+               "• **Spirale** (2000 Ar) : Pratique, pages plates, idéale pour documents fréquemment utilisés\n"
+               "• **Perfect Binding** (3000 Ar) : Aspect professionnel, dos carré, parfaite pour mémoires et rapports\n"
+               "• **Agrafé** (1000 Ar) : Économique, pour documents de moins de 50 pages\n\n"
+               "Laquelle correspond le mieux à votre projet ? ✨")
+    
+    # 3. Problème qualité image
+    if "basse résolution" in q or "qualité image" in q or "résolution" in q:
+        return ("🖼️ **Qualité d'impression des images** :\n\n"
+               "Pour une impression optimale, nous recommandons :\n"
+               "• **300 DPI** minimum pour les images\n"
+               "• Formats : PDF, JPG, PNG haute qualité\n"
+               "• Taille des images : adaptée au format final\n\n"
+               "Nous pouvons vérifier vos fichiers gratuitement avant impression ! 📄")
+    
+    # 4. Conseil pour restaurant
+    if "restaurant" in q and "flyer" in q:
+        return ("🍽️ **Flyers pour restaurant - Nos conseils** :\n\n"
+               "• **Format A5** : Parfait pour la distribution\n"
+               "• **Papier brillant** : Met en valeur les photos de plats\n"
+               "• **500 flyers** : 25 000 Ar (50 Ar/unité)\n"
+               "• **Conseil** : Ajoutez un coupon de réduction !\n\n"
+               "Prêt à impressionner vos clients ? 🎯")
+    
+    # 5. Marges document
+    if "marges" in q or "marge" in q:
+        return ("📐 **Recommandations marges** :\n\n"
+               "• **Minimum conseillé** : 1.5 cm sur tous les bords\n"
+               "• **Idéal** : 2 cm pour une impression professionnelle\n"
+               "• **Importante** : Vérifiez le fond perdu si vos éléments touchent les bords\n\n"
+               "Vos marges de 2cm sont parfaites ! ✅")
+    
+    
+    # 7. Services relecture
+    if "relecture" in q or "correction" in q:
+        return ("✏️ **Services de relecture** :\n\n"
+               "Nous nous concentrons sur l'impression de qualité.\n"
+               "**Conseil** : Faites relire vos documents avant impression par :\n"
+               "• Votre entourage\n"
+               "• Des services de relecture en ligne\n"
+               "• Des professionnels locaux\n\n"
+               "Nous imprimons ce que vous nous fournissez ! 📝")
+    
+    # 8. Horaires
+    if "horaires" in q or "heure" in q or "ouvrir" in q:
+        return ("🕐 **Nos horaires Print.mg** :\n\n"
+               "• **Lundi - Vendredi** : 8h00 - 17h00\n"
+               "• **Samedi** : 8h00 - 12h00\n"
+               "• **Dimanche** : Fermé\n"
+               "• **Dépôt fichiers** : Possible aux horaires d'ouverture\n\n"
+               "À bientôt dans notre atelier ! 🏢")
+    
+    # Réponse par défaut élégante
+    return get_elegant_fallback(question)
+
+def get_simple_response(question: str):
+    """Gère TOUTES les réponses simples sans IA"""
+    q = question.lower()
+    
+    # 0. 🔥 EXCLURE LES QUESTIONS COMPLEXES EN PREMIER
+    if is_complex_question(question):
+        return None
+    
+    # 1. Politesse
+    intent = detect_intent(q)
+    if intent in POLITE_KEYWORDS:
+        remaining = q.replace(intent, "").strip()
+        if not remaining:
+            return AUTOMATIC_ANSWERS[intent]
+        # Si reste après politesse, vérifier si c'est complexe
+        if is_complex_question(remaining):
+            return None
+    
+    # 2. 🔥 DÉTECTION SPÉCIFIQUE DES CALCULS DE PRIX COMPLEXES
+    if any(word in q for word in ["100 pages", "200 pages", "50 pages", "pages"]) and "livre" in q:
+        if "a4" in q and "spirale" in q:
+            return None  # Laisser get_detailed_fallback gérer
+    
+    # 3. Produits spécifiques
+    specific_product = detect_specific_products(q)
+    if specific_product:
+        return specific_product
+    
+    # 4. Prix spécifiques
+    product_price = get_price_for_product(q)
+    if product_price:
+        return product_price
+    
+    # 5. Commandes & livraison
+    if any(word in q for word in COMMAND_KEYWORDS):
+        return AUTOMATIC_ANSWERS["commande"]
+    
+    if any(word in q for word in DELIVERY_KEYWORDS):
+        return AUTOMATIC_ANSWERS["livraison"]
+    
+    # 6. Présentation Print.mg
+    if "print.mg" in q or "printmg" in q or "c'est quoi print" in q:
+        return get_elegant_fallback(q)
+    
+    # 7. Produits généraux
+    if any(word in q for word in PRODUCT_KEYWORDS):
+        if not has_specific_product_mention(q):
+            produits = Produits.objects.all()
+            if produits.exists():
+                noms = ", ".join([p.name for p in produits])
+                return f"📦 **Nos produits Print.mg** : {noms}.\n\n{BOOK_PRICES_MESSAGE}"
+    
+    # 8. Prix généraux
+    if any(word in q for word in PRICE_KEYWORDS):
+        return get_all_products_with_prices()
+    
+    return None
+# =========================================================
+# 🔹 Vue principale Chatbot - VERSION CORRIGÉE
+# =========================================================
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def chatbot(request):
+    question = request.data.get("question", "").strip()
+    
+    if not question:
+        return Response({"answer": "🤗 Bonjour ! Une question sur Print.mg ? Je suis là pour vous aider 😊"})
+
+    q = question.lower()
+
+    # 🔥 NOUVEAU : SUIVI DE COMMANDE (très simple)
+    if any(word in q for word in ["suivi", "statut", "où est", "état", "tracking", "commande"]):
+        suivi_response = get_suivi_commande_response()
+        return Response({"answer": suivi_response})
+
+    # 1️⃣ RECHERCHE DE RÉPONSE SIMPLE (PRIORITÉ ABSOLUE)
+    simple_response = get_simple_response(q)
+    if simple_response:
+        return Response({"answer": simple_response})
+
+    # 2️⃣ DÉTECTION QUESTIONS COMPLEXES
+    if is_complex_question(question):
+        print(f"🔍 Question complexe détectée: {question}")
+        
+        # Essayer d'abord le fallback détaillé
+        detailed_response = get_detailed_fallback(question)
+        if detailed_response != get_elegant_fallback(question):
+            return Response({"answer": detailed_response})
+        
+        # Sinon utiliser le modèle IA
+        answer = ask_elegant_french_ai(question)
+        return Response({"answer": answer})
+
+    # 3️⃣ FALLBACK GÉNÉRAL
+    return Response({"answer": get_elegant_fallback(question)})
+
+# =========================================================
+# 🔹 Nouvelles fonctions de détection spécifique
+# =========================================================
+
+def detect_specific_products(question: str):
+    """Détecte les mentions de produits spécifiques dans la question"""
+    q = question.lower()
+    
+    # Dictionnaire des produits spécifiques et leurs réponses
+    specific_products = {
+        "flyer": {
+            "keywords": ["flyer", "flyers", "tract", "tracts"],
+            "response": "🎯 **Flyers Print.mg** :\n\n• **Prix** : 50 Ar l'unité\n• **Format standard** : A5/A6\n• **Papier** : Brillant ou mat\n• **Quantité** : À partir de 100 unités\n\nParfait pour vos événements et promotions ! 🚀"
+        },
+        "carte de visite": {
+            "keywords": ["carte de visite", "cart de visite", "carte visite"],
+            "response": "📇 **Cartes de visite Print.mg** :\n\n• **Prix** : 100 Ar l'unité\n• **Format** : 8.5 x 5.5 cm\n• **Finitions** : Brillant, mat, vernis sélectif\n• **Recto/verso** : Disponible\n\nProfessionnalisez votre image ! ✨"
+        },
+        "poster": {
+            "keywords": ["poster", "affiche", "affiches"],
+            "response": "🖼️ **Posters & Affiches Print.mg** :\n\n• **Prix** : 500 Ar l'unité\n• **Formats** : A4, A3, A2, sur mesure\n• **Papier** : Photo qualité premium\n• **Encadrement** : Option disponible\n\nIdéal pour décoration et promotion ! 🎨"
+        },
+        "livre": {
+            "keywords": ["livre", "livres", "brochure", "brochures"],
+            "response": "📚 **Livres & Brochures Print.mg** :\n\n" + BOOK_PRICES_MESSAGE + "\n\nNous personnalisons selon votre projet ! 😊"
+        },
+        "document": {
+            "keywords": ["document", "documents", "rapport", "mémoire"],
+            "response": "📄 **Documents professionnels Print.mg** :\n\n• **Impression noir & blanc** : 20 Ar/page\n• **Impression couleur** : 50 Ar/page\n• **Reliure** : Spirale, agrafée, reliure cousue\n• **Options** : Couverture rigide, personnalisation\n\nParfait pour rapports et mémoires ! 📊"
+        }
+    }
+    
+    for product_name, product_info in specific_products.items():
+        for keyword in product_info["keywords"]:
+            if keyword in q:
+                return product_info["response"]
+    
+    return None
+
+def get_specific_price_response(question: str):
+    """Donne une réponse de prix spécifique plutôt que la liste générale"""
+    q = question.lower()
+    
+    # Vérifier d'abord les produits spécifiques
+    specific_response = detect_specific_products(q)
+    if specific_response:
+        return specific_response
+    
+    # Vérifier les produits de la base de données
+    product_price = get_price_for_product(q)
+    if product_price:
+        return product_price
+    
+    return None
+
+def has_specific_product_mention(question: str):
+    """Vérifie si la question mentionne un produit spécifique"""
+    q = question.lower()
+    
+    specific_mentions = [
+        "flyer", "carte de visite", "poster", "affiche", "livre", 
+        "brochure", "document", "rapport", "mémoire", "catalogue"
+    ]
+    
+    return any(mention in q for mention in specific_mentions)
+
+# =========================================================
+# 🔹 Mise à jour de la fonction get_price_for_product
+# =========================================================
+def get_price_for_product(question):
+    """Version améliorée avec réponses plus élégantes"""
+    produits = Produits.objects.all()
+    q = question.lower()
+    
+    for p in produits:
+        if p.name.lower() in q:
+            return (
+                f"💵 **{p.name}** - **{p.prix:.0f} Ar**\n\n"
+                f"Ce tarif comprend une impression de qualité professionnelle.\n"
+                f"Souhaitez-vous des détails sur les options ou passer commande ? 😊"
+            )
+    return None
+
+def get_suivi_commande_response():
+    """Explique le processus de suivi de Print.mg"""
+    return (
+        "📊 **Suivi de commande Print.mg**\n\n"
+        "**Notre processus de suivi :**\n\n"
+        "• 📧 **Emails automatiques** :\n"
+        "  - Confirmation de commande\n"
+        "  - Commande en production  \n"
+        "  - Commande prête\n"
+        "  - Livraison en cours\n\n"
+        "• 📞 **Appels téléphoniques** :\n"
+        "  - 3 appels minimum jusqu'à livraison\n"
+        "  - Confirmation et suivi\n"
+        "  - Coordination livraison\n\n"
+        "• 🔄 **Mise à jour automatique** :\n"
+        "  - Statuts mis à jour en temps réel\n"
+        "  - Pas besoin de chercher l'info\n"
+        "  - On vous tient informé !\n\n"
+        "**Détendez-vous, on s'occupe de tout !** 🎉\n\n"
+        "📞 Contactez-nous si pas de nouvelles sous 24h !"
+    )
