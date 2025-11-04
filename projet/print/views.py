@@ -101,7 +101,7 @@ class MeView(APIView):
             "prenom": user.prenom,
             "email": user.email,
             "role": user.role,
-            "profils": user.profils.url if user.profils else None,
+            "profils": user.google_avatar_url if user.google_avatar_url else (user.profils.url if user.profils else None),
         })
 
 
@@ -111,55 +111,67 @@ class MeView(APIView):
 def create_commande(request):
     """
     Endpoint pour créer une commande d'impression.
-    Gère :
-    - La création de la configuration d'impression
-    - Le calcul automatique du montant total via le modèle
-    - La gestion du fichier uploadé
-    - La simulation du paiement Mvola
-    - L'envoi automatique d'emails après 2 minutes et 2 heures
     """
     data = request.data
-    user = request.user  # L'utilisateur connecté qui passe la commande
+    user = request.user
 
     try:
-        with transaction.atomic():  # Tout est atomique, rollback si erreur
+        with transaction.atomic():
             # -----------------------------
-            # 1️⃣ Récupération de la quantité et nombre de pages si c'est un livre
+            # 1️⃣ RÉCUPÉRATION DU PRODUIT (OPTIONNEL POUR LES LIVRES)
+            # -----------------------------
+            produit_id = data.get("produit_id")
+            produit = None
+            
+            # ⭐ MODIFICATION : Produit obligatoire seulement si ce n'est pas un livre
+            is_book = data.get("is_book", "false").lower() == "true"
+            
+            if not is_book and not produit_id:
+                return Response({"success": False, "error": "Veuillez sélectionner un produit pour les impressions normales."}, status=400)
+            
+            if produit_id:
+                try:
+                    produit = Produits.objects.get(id=produit_id)
+                except Produits.DoesNotExist:
+                    if not is_book:
+                        return Response({"success": False, "error": "Produit non trouvé."}, status=400)
+                    # Pour les livres, on continue même si le produit n'existe pas
+
+            # -----------------------------
+            # 2️⃣ RÉCUPÉRATION DES DONNÉES
             # -----------------------------
             try:
                 quantity = int(data.get("quantity", 0))
             except ValueError:
                 return Response({"success": False, "error": "La quantité doit être un nombre entier."}, status=400)
 
-            # Vérifie si c'est un livre et récupère le nombre de pages
-            is_book = data.get("is_book", "false").lower() == "true"
             book_pages = int(data.get("book_pages")) if data.get("book_pages") and is_book else None
 
             # -----------------------------
-            # 2️⃣ Création de la configuration d'impression
+            # 3️⃣ CRÉATION DE LA CONFIGURATION
             # -----------------------------
             largeur = data.get("largeur")
             hauteur = data.get("hauteur")
             config = ConfigurationImpression.objects.create(
-                format_type=data["format_type"],                    # Petit ou grand format
-                small_format=data.get("small_format") or None,     # Si petit format
+                produit=produit,  # ⭐ Peut être None pour les livres
+                format_type=data["format_type"],
+                small_format=data.get("small_format") or None,
                 largeur=Decimal(largeur) if largeur not in [None, ""] else None,
                 hauteur=Decimal(hauteur) if hauteur not in [None, ""] else None,
-                paper_type=data.get("paper_type") or None,         # Type de papier
-                finish=data.get("finish") or None,                 # Finition
+                paper_type=data.get("paper_type") or None,
+                finish=data.get("finish") or None,
                 quantity=quantity,
-                duplex=data.get("duplex") or None,                 # Recto ou recto/verso
-                binding=data.get("binding") or None,               # Type de reliure
-                cover_paper=data.get("cover_paper") or None,       # Couverture
-                options=data.get("options") or None,               # Options supplémentaires
-                is_book=is_book,                                   # Livre ou non
-                book_pages=book_pages                              # Nombre de pages si livre
+                duplex=data.get("duplex") or None,
+                binding=data.get("binding") or None,
+                cover_paper=data.get("cover_paper") or None,
+                options=data.get("options") or None,
+                is_book=is_book,
+                book_pages=book_pages
             )
 
             # -----------------------------
-            # 3️⃣ Création de la commande
+            # 4️⃣ CRÉATION DE LA COMMANDE
             # -----------------------------
-            # montant_total sera calculé automatiquement via la méthode save()
             commande = Commande.objects.create(
                 utilisateur=user,
                 configuration=config,
@@ -167,7 +179,7 @@ def create_commande(request):
             )
 
             # -----------------------------
-            # 4️⃣ Gestion du fichier uploadé
+            # 5️⃣ GESTION DU FICHIER UPLOADÉ
             # -----------------------------
             uploaded_file = request.FILES.get("file")
             if uploaded_file:
@@ -182,23 +194,25 @@ def create_commande(request):
                 )
 
             # 4️⃣ Paiement via Mvola Test
-                    # mvola_response = requests.post(
-                    #     "https://api-mvola-test.com/payment",
-                    #     json={
-                    #         "phone": data["phone"],
-                    #         "amount": float(montant_total),  # <-- converti en float
-                    #         "order_id": commande.id
-                    #     },
-                    #     headers={"Authorization": "Bearer TEST_TOKEN"}
-                    # ).json()
+            # mvola_response = requests.post(
+            #     "https://api-mvola-test.com/payment",
+            #     json={
+            #         "phone": data["phone"],
+            #         "amount": float(montant_total),  # <-- converti en float
+            #         "order_id": commande.id
+            #     },
+            #     headers={"Authorization": "Bearer TEST_TOKEN"}
+            # ).json()
 
-                    # Simulation avec mvola test
+            # Simulation avec mvola test
 
 
-                    # Email impression en cours (après 2 heures)
+            # Email impression en cours (après 2 heures)
 
             # -----------------------------
-            # 5️⃣ Simulation paiement Mvola test
+
+            # -----------------------------
+            # 6️⃣ SIMULATION PAIEMENT Mvola
             # -----------------------------
             mvola_response = {
                 "transaction_id": f"TEST-{commande.id}",
@@ -207,13 +221,13 @@ def create_commande(request):
             Paiement.objects.create(
                 commande=commande,
                 phone=data.get("phone", ""),
-                montant=commande.montant_total,                    # Montant calculé automatiquement
+                montant=commande.montant_total,
                 transaction_id=mvola_response.get("transaction_id"),
                 statut_paiement=mvola_response.get("status", "pending")
             )
 
             # -----------------------------
-            # 6️⃣ Préparation envoi d'emails
+            # 7️⃣ PRÉPARATION ENVOI EMAILS
             # -----------------------------
             user_email = user.email
             commande_id = commande.id
@@ -231,18 +245,23 @@ def create_commande(request):
 
             # Email confirmation (après 2 minutes)
             def send_confirmation_email():
+                type_commande = "Livre" if is_book else "Produit normal"
+                produit_nom = produit.name if produit else "Livre (tarifs standard)"
+                
                 send_mail(
                     subject="✅ Confirmation de votre commande sur Print.mg",
                     message=(
                         f"Bonjour {user.nom} {user.prenom},\n\n"
                         f"Votre commande n°{commande_id} a bien été reçue ✅.\n\n"
                         f"📌 Détails de la commande :\n"
+                        f"- Type: {type_commande}\n"
+                        f"- Produit: {produit_nom}\n"
                         f"- Montant total : {montant} Ar\n"
                         f"- Quantité : {quantity}\n"
                         f"- Nombre de pages : {nombre_pages}\n"
                         f"- Format : {format_type} ({small_format})\n"
                         f"- Fichier : {nom_fichier} ({format_fichier}, {resolution} dpi)\n\n"
-                        f"Nous vous enverrons un email lorsque l’impression commencera 🖨️.\n\n"
+                        f"Nous vous enverrons un email lorsque l'impression commencera 🖨️.\n\n"
                         f"Merci de votre confiance 🙏"
                     ),
                     from_email=settings.DEFAULT_FROM_EMAIL,
@@ -257,14 +276,14 @@ def create_commande(request):
             "success": True,
             "commande_id": commande.id,
             "paiement_status": mvola_response.get("status"),
-            "montant_total": float(commande.montant_total)
+            "montant_total": float(commande.montant_total),
+            "type": "livre" if is_book else "produit_normal"
         })
 
     except Exception as e:
         # Gestion des erreurs
         return Response({"success": False, "error": str(e)})
-
-
+    
 # Pour récuper tout les commandes user
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])  # L'utilisateur doit être authentifié
@@ -402,6 +421,47 @@ class ProfilView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         return self.request.user # retourné l'utilisateur connécté
 
+# Modifier la photo de profil de l'utilisateur
+class ProfilPhotoView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def put(self, request):
+        print("=" * 50)
+        print("📸 ENDPOINT PHOTO DÉDIÉ")
+        print("=" * 50)
+        print(f"📦 FILES reçus: {dict(request.FILES)}")
+        print(f"📦 User: {request.user.email}")
+        
+        user = request.user
+        
+        if 'profils' not in request.FILES:
+            print("❌ AUCUN FICHIER dans request.FILES")
+            return Response({"error": "Aucune image reçue"}, status=400)
+        
+        profils = request.FILES['profils']
+        print(f"💾 Fichier reçu: {profils.name} ({profils.size} bytes)")
+        print(f"📁 Ancien fichier: {user.profils}")
+        
+        # Supprimer l'ancien fichier
+        if user.profils:
+            try:
+                user.profils.delete(save=False)
+                print("🗑️ Ancien fichier supprimé")
+            except Exception as e:
+                print(f"⚠️ Erreur suppression: {e}")
+        
+        # Sauvegarder le nouveau
+        user.profils = profils
+        user.google_avatar_url = None  # Important
+        user.save()
+        
+        print(f"✅ NOUVEAU FICHIER: {user.profils}")
+        print(f"✅ URL: {user.profils.url}")
+        
+        return Response({
+            "message": "Photo mise à jour", 
+            "profils": user.profils.url
+        })
 
 # Mofifié un mot de passe dans le profil utilisateur
 class ChangePasswordView(APIView):
@@ -1035,6 +1095,7 @@ def google_login(request):
     email = request.data.get('email')
     nom = request.data.get('nom', 'Utilisateur')
     prenom = request.data.get('prenom', '')
+    profil_picture = request.data.get('profil') 
 
     if not email:
         return Response({"error": "Email manquant"}, status=400)
@@ -1044,11 +1105,17 @@ def google_login(request):
         defaults={
             "nom": nom,
             "prenom": prenom,
-            "profils": None  # temporaire pour éviter l'erreur 400
+            "google_avatar_url": profil_picture   # Stocker uniquement l'URL
         }
     )
 
+    # Mettre à jour l'URL Google si l'utilisateur existe
+    if not created and profil_picture:
+        user.google_avatar_url = profil_picture
+        user.save()
+
     refresh = RefreshToken.for_user(user)
+
     return Response({
         "access": str(refresh.access_token),
         "refresh": str(refresh),
@@ -1057,6 +1124,7 @@ def google_login(request):
             "nom": user.nom,
             "prenom": user.prenom,
             "role": user.role,
+            "profils": user.google_avatar_url  # ⭐ Retourner directement l'URL Google
         }
     })
 
@@ -1124,17 +1192,22 @@ BOOK_PRICES_MESSAGE = """📖 **Tarifs détaillés pour les livres** :
 • A3 : 1 000 Ar
 • A4 : 500 Ar  
 • A5 : 300 Ar
+• Personnalisé : 200 Ar
 • Large format : 5 000 Ar
 
 📚 **Reliures** :
 • Spirale : 2 000 Ar
 • Perfect binding : 3 000 Ar
 • Agrafée : 1 000 Ar
+• Couverture rigide : 5 000 Ar
+• Dos caré Cousu : 1 000 Ar
 
 🛡️ **Couvertures** :
 • Papier photo : 3 000 Ar
-• Simple : 1 000 Ar
-• Double face : Sur devis
+• Papier Simple : 1 000 Ar
+• Papier couché Mat : 4 000 Ar
+• Papier couché Brillant : 4 500 Ar
+• Papier Création Texturé : 6 000 Ar
 
 🚚 **Livraison** : 5 000 Ar (Antananarivo)
 """

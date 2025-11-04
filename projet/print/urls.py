@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ChangePasswordView, ProduitsViewSet, ProfilView, RegisterUserView, UsersListView, MyTokenObtainPairView, admin_dashboard_stats, changer_statut_commande, chatbot, commande_en_cours, commandes_count_public, delete_notification_forever, download_file, get_deleted_notifications, google_login, mark_notifications_read, notifications_admin, restore_notification, search_products, send_notification_admin, send_notification_user, soft_delete_notification, terminer_commande, unread_count, user_dashboard_stats, user_notifications
+from .views import ChangePasswordView, ProduitsViewSet, ProfilPhotoView, ProfilView, RegisterUserView, UsersListView, MyTokenObtainPairView, admin_dashboard_stats, changer_statut_commande, chatbot, commande_en_cours, commandes_count_public, delete_notification_forever, download_file, get_deleted_notifications, google_login, mark_notifications_read, notifications_admin, restore_notification, search_products, send_notification_admin, send_notification_user, soft_delete_notification, terminer_commande, unread_count, user_dashboard_stats, user_notifications
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import MeView, get_user_commandes
 from . import views
@@ -34,6 +34,7 @@ urlpatterns = [
     path('download/<int:fichier_id>/', download_file, name='download_file'),
     # Modifier le profil de l'utilisateur
     path('api/profil/', ProfilView.as_view(), name='profil'),
+    path('api/profil/photo/', ProfilPhotoView.as_view(), name='profil-photo'),
     path('api/profil/change-password/', ChangePasswordView.as_view(), name="change-password"),
     path('api/admin/commandes/count/', commandes_count_public, name="nombre-commande"),
     # Permet d'envoyé la notification aux utilisateur que son commande est prêt à livré

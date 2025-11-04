@@ -57,7 +57,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 class UsersList(serializers.ModelSerializer):
     class Meta:
         model = Utilisateurs
-        fields = ['id', 'nom', 'prenom', 'email', 'num_tel', 'code_postal', 'ville', 'pays', 'role', 'profils', 'date_inscription']
+        fields = ['id', 'nom', 'prenom', 'email', 'num_tel', 'code_postal', 'ville', 'pays', 'role', 'profils', 'google_avatar_url', 'date_inscription']
 
 
 
@@ -126,8 +126,16 @@ class CommandeSerializer(serializers.ModelSerializer):
         return getattr(obj.paiement, 'phone', None)
 
     def get_montant_total(self, obj):
-        return obj.calculer_montant() if obj.configuration else 0
-
+        try:
+            if obj.configuration:
+                # ✅ GESTION D'ERREUR ROBUSTE
+                return float(obj.calculer_montant())
+            else:
+                return 0
+        except Exception as e:
+            print(f"❌ Erreur dans calculer_montant: {e}")
+            # Fallback: utiliser le montant_total stocké en base
+            return float(obj.montant_total) if obj.montant_total else 0
 
 
 # Côté Admin (plus détaillé) pour la gestion des commandes
@@ -184,32 +192,63 @@ class CommandeAdminSerializer(serializers.ModelSerializer):
 
 # Modifier le profil utilisateur
 class ProfilSerializer(serializers.ModelSerializer):
+    # ⭐ CHAMP POUR LA LECTURE (affichage)
+    profils = serializers.SerializerMethodField()
+    
+    # ⭐ CHAMP POUR L'ÉCRITURE (upload)
+    profils_file = serializers.ImageField(
+        write_only=True, 
+        required=False, 
+        allow_null=True
+    )
+
     class Meta:
         model = Utilisateurs
-        fields = ['nom', 'prenom', 'email', 'num_tel', 'code_postal', 'ville', 'pays', 'profils']
-        read_only_fields = ['id', 'email', 'pays'] # L'user n'est pas autorisé de modifier son email et pays
+        fields = ['nom', 'prenom', 'email', 'num_tel', 'code_postal', 'ville', 'pays', 'profils', 'profils_file', 'google_avatar_url']
+        read_only_fields = ['id', 'email']
 
-    # ✅ Ajouter update pour gérer FormData et fichiers
+    def get_profils(self, obj):
+        if obj.google_avatar_url:
+            return obj.google_avatar_url
+        if obj.profils:
+            return obj.profils.url
+        return None
+
     def update(self, instance, validated_data):
+        print("🔄 MISE À JOUR DU PROFIL - DEBUG COMPLET")
+        print(f"📋 Toutes les clés: {list(validated_data.keys())}")
+        
+        # Mettre à jour les champs textuels
         instance.nom = validated_data.get('nom', instance.nom)
         instance.prenom = validated_data.get('prenom', instance.prenom)
         instance.email = validated_data.get('email', instance.email)
         instance.num_tel = validated_data.get('num_tel', instance.num_tel)
         instance.code_postal = validated_data.get('code_postal', instance.code_postal)
         instance.ville = validated_data.get('ville', instance.ville)
-        instance.pays = validated_data.get('pays', instance.pays)        
+        instance.pays = validated_data.get('pays', instance.pays)
 
-        # ⚠️ Gestion du fichier
-        profils = validated_data.get('profils', None)
-        if profils:
-            instance.profils = profils
+        # ⭐⭐ CORRECTION : Utiliser profils_file au lieu de profils
+        profils_file = validated_data.get('profils_file', None)
+        print(f"📸 Image dans validated_data: {profils_file}")
+        
+        if profils_file:
+            print(f"💾 NOUVELLE IMAGE: {profils_file.name}")
+            print(f"📁 Avant: {instance.profils}")
+            
+            # Supprimer l'ancien fichier
+            if instance.profils:
+                instance.profils.delete(save=False)
+                print("🗑️ Ancien fichier supprimé")
+            
+            # Sauvegarder le nouveau
+            instance.profils = profils_file
+            instance.google_avatar_url = None
+            print(f"📁 Après: {instance.profils}")
 
         instance.save()
+        print(f"✅ SAUVEGARDE - Image finale: {instance.profils}")
         return instance
 
-
-
-# Envoyer des notifications
 class UserMiniSerializer(serializers.ModelSerializer):
     class Meta:
         model = Utilisateurs

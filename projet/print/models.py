@@ -4,6 +4,38 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 from decimal import Decimal
 
 
+# AJOUTEZ CES CONSTANTES EN HAUT DE models.py (après les imports)
+PRIX_PAGE_LIVRE = {
+    "A3": Decimal("1000"),
+    "A4": Decimal("500"), 
+    "A5": Decimal("300"),
+    "A6": Decimal("200"),
+    "custom": Decimal("200"),
+}
+
+PRIX_RELIURE = {
+    "spirale": Decimal("2000"),
+    "dos_colle": Decimal("3000"), 
+    "agrafé": Decimal("1000"),
+    "rigide": Decimal("5000"),
+    "cousu": Decimal("4000")
+}
+
+PRIX_COUVERTURE = {
+    "simple": Decimal("1000"),
+    "photo": Decimal("3000"),
+    "mat": Decimal("4000"),
+    "brillant": Decimal("4500"),
+    "texture": Decimal("6000")
+}
+
+PRIX_DUPLEX = {
+    "recto": Decimal("1.0"),
+    "recto_verso": Decimal("1.2"),
+}
+
+FRAIS_LIVRAISON = Decimal("5000")
+
 
 class Produits(models.Model):
     name = models.CharField(max_length=255)
@@ -13,6 +45,19 @@ class Produits(models.Model):
     image = models.ImageField(upload_to='Imageproduit/', null=True, blank=True)
     future = models.CharField(max_length=155, null=True, blank=True)
 
+    format_defaut = models.CharField(
+        max_length=5,
+        choices=[
+            ("A3", "A3"),
+            ("A4", "A4"),
+            ("A5", "A5"),
+            ("A6", "A6"),
+        ],
+        default="A4",
+    )
+
+    # 🆕 Nouveau champ : est-ce un grand format ?
+    is_grand_format = models.BooleanField(default=False)
     def __str__(self):
         return self.name
     
@@ -48,6 +93,9 @@ class Utilisateurs(AbstractBaseUser, PermissionsMixin):
     date_inscription = models.DateTimeField(auto_now_add=True)
     profils = models.ImageField(upload_to='Profiluser/', null=True, blank=True)
 
+    # ⭐ NOUVEAU CHAMP - Ajoutez cette ligne
+    google_avatar_url = models.URLField(blank=True, null=True)
+
     # Champs obligatoires pour AbstractBaseUser
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)  # Accès admin
@@ -60,6 +108,15 @@ class Utilisateurs(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.nom} {self.prenom} ({self.role})"
+    
+    # ⭐ OPTIONNEL - Méthode utilitaire pour obtenir l'avatar
+    def get_avatar_url(self):
+        """Retourne l'URL de l'avatar (local ou Google)"""
+        if self.profils:
+            return self.profils.url
+        elif self.google_avatar_url:
+            return self.google_avatar_url
+        return None
 
 
 
@@ -67,6 +124,13 @@ class Utilisateurs(AbstractBaseUser, PermissionsMixin):
 # Configuration d'impression
 # -----------------------------
 class ConfigurationImpression(models.Model):
+    produit = models.ForeignKey(
+        "Produits",  # référence au modèle Produits
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="configurations"
+    )
     FORMAT_CHOICES = [
         ('petit', 'Petit format'),
         ('grand', 'Grand format'),
@@ -99,6 +163,8 @@ class ConfigurationImpression(models.Model):
         ('brillant', 'Brillant'),
         ('mate', 'Mate'),
         ('standard', 'Standard'),
+        ('vernis', 'Vernis Sélectif'),
+        ('dorure', 'Dorure à chaud')
     ]
     finish = models.CharField(max_length=10, choices=FINITION_CHOICES, null=True, blank=True)
 
@@ -121,12 +187,17 @@ class ConfigurationImpression(models.Model):
         ('spirale', 'Spirale'),
         ('dos_colle', 'Dos collé'),
         ('agrafé', 'Agrafé'),
+        ('rigide', 'Couverture rigide'),
+        ("cousu", 'Dos caré Cousu')
     ]
     binding = models.CharField(max_length=20, choices=BINDING_CHOICES, null=True, blank=True)
 
     COVER_CHOICES = [
         ('simple', 'Papier simple'),
         ('photo', 'Papier photo'),
+        ('mat', 'Papier couché Mat'),
+        ('brillant', 'Papier couché Brillant'),
+        ('texture', 'Papier Création Texturé')
     ]
     cover_paper = models.CharField(max_length=20, choices=COVER_CHOICES, null=True, blank=True)
 
@@ -173,38 +244,76 @@ class Commande(models.Model):
         return f"Commande {self.id} - {self.utilisateur}"
 
     def calculer_montant(self):
-        config = self.configuration
-        prix_par_page = {
-            "A3": Decimal("1000"),
-            "A4": Decimal("500"),
-            "A5": Decimal("300"),
-            "A6": Decimal("200"),
-        }
-        prix_grand = Decimal("5000")
-        duplex_multiplier = Decimal("1.2") if config.duplex == "recto_verso" else Decimal("1")
-        binding_price = Decimal("0")
-        if config.binding == "spirale": binding_price = 2000
-        if config.binding == "dos_colle": binding_price = 3000
-        if config.binding == "agrafé": binding_price = 1000
-        cover_price = Decimal("0")
-        if config.cover_paper == "photo": cover_price = 3000
-        if config.cover_paper == "simple": cover_price = 1000
-        delivery_fee = 5000
-
-        if config.is_book and config.book_pages:
-            pages_total = prix_par_page.get(config.small_format, prix_grand) * config.book_pages
-            options_total = (binding_price + cover_price) * config.quantity
-            montant = (pages_total * config.quantity + options_total) * duplex_multiplier + delivery_fee
-        else:
-            if config.format_type == "petit":
-                base_price = prix_par_page.get(config.small_format, 200)
+        try:
+            print(f"🔍 Début calculer_montant pour commande {self.id}")
+            
+            config = self.configuration
+            if not config:
+                print("❌ Pas de configuration")
+                return Decimal("10000")
+            
+            produit = config.produit
+            print(f"🔍 Produit: {produit}")
+            print(f"🔍 is_book: {config.is_book}, book_pages: {config.book_pages}")
+            
+            # ✅ CORRECTION : LES LIVRES N'ONT PAS BESOIN DE PRODUIT
+            # SI C'EST UN LIVRE - UTILISER LES PRIX FIXES
+            if config.is_book and config.book_pages:
+                print(f"📖 Calcul LIVRE - Pages: {config.book_pages}, Format: {config.small_format}")
+                
+                # 1. Prix des pages
+                prix_page_livre = PRIX_PAGE_LIVRE.get(config.small_format, PRIX_PAGE_LIVRE["custom"])
+                prix_pages = prix_page_livre * config.book_pages * config.quantity
+                
+                # 2. Prix couverture
+                prix_couverture_base = Decimal("0")
+                if config.cover_paper in PRIX_COUVERTURE:
+                    prix_couverture_base += PRIX_COUVERTURE[config.cover_paper]
+                
+                multiplicateur_duplex = PRIX_DUPLEX.get(config.duplex, Decimal("1.0"))
+                prix_couverture_base *= multiplicateur_duplex
+                prix_couverture_total = prix_couverture_base * config.quantity
+                
+                # 3. Reliure
+                prix_reliure = Decimal("0")
+                if config.binding in PRIX_RELIURE:
+                    prix_reliure = PRIX_RELIURE[config.binding] * config.quantity
+                
+                # 4. Calcul final
+                montant_total = prix_pages + prix_couverture_total + prix_reliure + FRAIS_LIVRAISON
+                
+                print(f"💰 MONTANT FINAL LIVRE: {montant_total}")
+                return montant_total
+            
+            # ✅ PRODUITS NORMAUX - BESOIN D'UN PRODUIT
             else:
-                surface = max((config.largeur / 100) * (config.hauteur / 100), 1)
-                base_price = surface * prix_grand
-            montant = (base_price * config.quantity * duplex_multiplier + binding_price + cover_price + delivery_fee)
-
-        return montant
-
+                # ⭐ CETTE VÉRIFICATION RESTE SEULEMENT POUR LES PRODUITS NORMAUX
+                if not produit:
+                    print("❌ PRODUIT NORMAL SANS PRODUIT - retourne 10000")
+                    return Decimal("10000")
+                
+                print(f"📄 Calcul PRODUIT - Prix: {produit.prix}, Quantité: {config.quantity}")
+                
+                prix_base = produit.prix
+                
+                # Ajustement format
+                multiplicateur_format = Decimal("1.0")
+                if config.small_format != produit.format_defaut:
+                    if config.small_format == "A3":
+                        multiplicateur_format = Decimal("1.5")
+                    elif config.small_format == "A4":
+                        multiplicateur_format = Decimal("1.2")
+                    elif config.small_format == "custom":
+                        multiplicateur_format = Decimal("1.3")
+                
+                montant_total = (prix_base * multiplicateur_format * config.quantity) + FRAIS_LIVRAISON
+                
+                print(f"💰 MONTANT FINAL PRODUIT: {montant_total}")
+                return montant_total
+                
+        except Exception as e:
+            print(f"💥 ERREUR dans calculer_montant: {e}")
+            return Decimal("10000")
 
     def save(self, *args, **kwargs):
         self.montant_total = self.calculer_montant()  # recalcul automatique
@@ -255,8 +364,6 @@ class Paiement(models.Model):
         return f"Paiement {self.transaction_id or self.id} - {self.statut_paiement}"
 
 
-
-
 class Chat(models.Model):
     utilisateur = models.ForeignKey("Utilisateurs", on_delete=models.CASCADE)
     message = models.TextField()
@@ -268,7 +375,6 @@ class Chat(models.Model):
 
     def __str__(self):
         return f"{self.type_message} - {self.utilisateur} : {self.message[:30]}"
-
 
 
 class Contenir(models.Model):
