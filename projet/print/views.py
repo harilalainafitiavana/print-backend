@@ -953,7 +953,6 @@ def reinitialiser_mot_de_passe(request, uidb64, token):
         return JsonResponse({"error": "Une erreur interne est survenue."}, status=500)
 
 
-
 # Tableau de bord côté admin
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -1633,7 +1632,7 @@ def chatbot(request):
     q = question.lower()
 
     # 🔥 NOUVEAU : SUIVI DE COMMANDE (très simple)
-    if any(word in q for word in ["suivi", "statut", "où est", "état", "tracking", "commande"]):
+    if any(word in q for word in ["suivi", "statut", "où est", "état", "tracking"]):
         suivi_response = get_suivi_commande_response()
         return Response({"answer": suivi_response})
 

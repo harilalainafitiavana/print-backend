@@ -175,7 +175,7 @@ EMAIL_USE_TLS = True
 
 # 🔹Compte Gmail (expéditeur)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER")
-# ⚠️ IMPORTANT : utilise un "mot de passe d’application" Google
+# IMPORTANT : utilise un "mot de passe d’application" Google
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
 
 # Par défaut, Django utilisera cet expéditeur
