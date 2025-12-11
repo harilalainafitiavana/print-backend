@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ChangePasswordView, ProduitsViewSet, ProfilPhotoView, ProfilView, RegisterUserView, UsersListView, MyTokenObtainPairView, admin_dashboard_stats, changer_statut_commande, chatbot, commande_en_cours, commandes_count_public, delete_notification_forever, download_file, get_deleted_notifications, google_login, mark_notifications_read, notifications_admin, restore_notification, search_products, send_notification_admin, send_notification_user, soft_delete_notification, terminer_commande, unread_count, user_dashboard_stats, user_notifications
+from .views import ChangePasswordView, ProduitsViewSet, ProfilPhotoView, ProfilView, RegisterUserView, UsersListView, MyTokenObtainPairView, admin_dashboard_stats, changer_statut_commande, chatbot, commande_en_cours, commandes_count_public, delete_notification_forever, download_file, get_deleted_notifications, get_sent_notifications, google_login, mark_notifications_read, notifications_admin, restore_notification, search_products, send_notification_to_admin, send_notification_user, soft_delete_notification, terminer_commande, unread_count, user_dashboard_stats, user_notifications
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import MeView, get_user_commandes
 from . import views
@@ -46,7 +46,8 @@ urlpatterns = [
     # Récupérer les notifications côté user
     path("api/notifications/", user_notifications, name="user_notifications"),
     # Envoyé des notifications aux admin
-    path("api/send-notification-admin/", send_notification_admin, name="send_notification_admin"),
+    path("api/send-notification-admin/", send_notification_to_admin, name="send_notification_admin"),
+    path('api/sent-notifications/', get_sent_notifications, name='get_sent_notifications'),
     # Récupérer les notification côté admin
     path("api/notifications-admin/", notifications_admin, name="notifications_admin"),
     # Récupérer le nombre de notifications non lues pour l'utilisateur connecté

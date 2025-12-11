@@ -141,8 +141,6 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 
-
-
 CORS_ALLOW_HEADERS = list(default_headers) + [
     "authorization",
 ]
@@ -156,7 +154,7 @@ AUTH_USER_MODEL = "print.Utilisateurs"
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',  # Authentification par défaut
-    'print.auth_backend.EmailBackend',  # Votre backend personnalisé
+    'print.auth_backend.EmailBackend',  # Notre backend personnalisé
 ]
 
 SIMPLE_JWT = {

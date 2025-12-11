@@ -600,7 +600,6 @@ def commande_en_cours(request, commande_id):
 
 
 # Envoyé le notification vers l'utilisateur concerné
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def send_notification_user(request):
@@ -647,7 +646,7 @@ def user_notifications(request):
 # Envoyé un notification vers l'admin
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def send_notification_admin(request):
+def send_notification_to_admin(request):
     try:
         message = request.data.get("message")
         if not message:
@@ -1761,3 +1760,38 @@ def get_suivi_commande_response():
         "**Détendez-vous, on s'occupe de tout !** 🎉\n\n"
         "📞 Contactez-nous si pas de nouvelles sous 24h !"
     )
+
+# Dans votre views.py Django
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_sent_notifications(request):
+    try:
+        # Trouver le profil Utilisateurs correspondant à l'User Django
+        # Cela dépend de comment vous avez lié les deux modèles
+        
+        # Option 1: Si vous avez un OneToOneField
+        # utilisateur = Utilisateurs.objects.get(user=request.user)
+        
+        # Option 2: Si vous utilisez le même email
+        utilisateur = Utilisateurs.objects.filter(email=request.user.email).first()
+        
+        if not utilisateur:
+            return Response({'error': 'Profil utilisateur non trouvé'}, status=404)
+        
+        # Maintenant filtrez les notifications
+        sent_notifications = Notification.objects.filter(
+            sender=utilisateur,
+            is_deleted=False
+        ).order_by('-created_at')
+        
+        # Pour éviter les doublons, vous pouvez exclure les notifications
+        # où l'utilisateur est à la fois sender et user (copies)
+        sent_notifications = sent_notifications.exclude(user=utilisateur)
+        
+        serializer = NotificationSerializer(sent_notifications, many=True)
+        return Response(serializer.data)
+        
+    except Exception as e:
+        print(f"Erreur: {str(e)}")
+        return Response({'error': str(e)}, status=500)
