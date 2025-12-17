@@ -1,4 +1,5 @@
 
+from datetime import timedelta
 from pathlib import Path
 from decouple import config
 from corsheaders.defaults import default_headers
@@ -158,6 +159,8 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=3),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "USER_ID_FIELD": "id", # quel champ du modèle User est utilisé comme identifiant interne dans le token.
     "USER_ID_CLAIM": "user_id", # comment ce champ sera nommé dans le payload du token JWT
 }
