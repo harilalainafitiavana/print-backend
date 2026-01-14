@@ -102,8 +102,7 @@ WSGI_APPLICATION = 'projet.wsgi.application'
 
 DATABASES = {
     "default": dj_database_url.config(
-        default=config("DATABASE_URL")  # utilisera DATABASE_URL si elle est définie
-        # default="postgres://fiti:fiti@localhost:5432/Printmg"
+        default="postgres://fiti:fiti@localhost:5432/Printmg"  # fallback local
     )
 }
 
