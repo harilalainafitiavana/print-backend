@@ -35,7 +35,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 import os
 import time
 from decouple import config
-from transformers import pipeline, AutoTokenizer, AutoModelForQuestionAnswering
+# from transformers import pipeline, AutoTokenizer, AutoModelForQuestionAnswering
 
 # from django.db.models.functions import Func
 # Ici ModelViewSet génère automatiquement les routes pour CRUD: GET/POST/PUT/DELETE
