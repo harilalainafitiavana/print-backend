@@ -4,7 +4,6 @@ from pathlib import Path
 from decouple import config
 from corsheaders.defaults import default_headers
 import dj_database_url
-import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -150,7 +149,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # pour ne pas ouvrir l'API à tout le monde
-REACT_APP_URL = os.environ.get("REACT_APP_URL", "http://localhost:5173")
+REACT_APP_URL = "https://print-frontend-production.up.railway.app"
 
 CORS_ALLOWED_ORIGINS = [
     REACT_APP_URL,
