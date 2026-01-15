@@ -3,6 +3,7 @@ from datetime import timedelta
 from pathlib import Path
 from decouple import config
 from corsheaders.defaults import default_headers
+import os
 import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -102,7 +103,7 @@ WSGI_APPLICATION = 'projet.wsgi.application'
 
 DATABASES = {
     "default": dj_database_url.config(
-        default="postgres://fiti:fiti@localhost:5432/Printmg"  # fallback local
+        default=os.environ.get("DATABASE_URL")
     )
 }
 
