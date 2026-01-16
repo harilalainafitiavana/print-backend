@@ -2,7 +2,7 @@ from django.db import models
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from decimal import Decimal
-
+from cloudinary.models import CloudinaryField
 
 # AJOUTEZ CES CONSTANTES EN HAUT DE models.py (après les imports)
 PRIX_PAGE_LIVRE = {
@@ -42,7 +42,7 @@ class Produits(models.Model):
     description = models.CharField(max_length=355)
     categorie = models.CharField(max_length=155)
     prix = models.DecimalField(max_digits=10, decimal_places=2)
-    image = models.ImageField(upload_to='Imageproduit/', null=True, blank=True)
+    image = CloudinaryField('image', blank=True, null=True)
     future = models.CharField(max_length=155, null=True, blank=True)
 
     format_defaut = models.CharField(
