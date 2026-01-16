@@ -200,7 +200,7 @@ class PaiementSerializer(serializers.ModelSerializer):
 class CommandeAdminSerializer(serializers.ModelSerializer):
     configuration = ConfigurationImpressionAdminSerializer()
     fichiers = BaseFichierSerializer(many=True, read_only=True)
-    paiement = PaiementSerializer(read_only=True)
+    paiement = PaiementSerializer(read_only=True, allow_null=True)
     user_email = serializers.SerializerMethodField()
     user_name = serializers.SerializerMethodField()
     user_phone = serializers.SerializerMethodField()
