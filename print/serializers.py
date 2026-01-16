@@ -4,14 +4,25 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-
+from cloudinary.utils import cloudinary_url
 
 
 #ModelSerializer Sert à transformer les informations dans la table produits en forme JSON pour que react peux le récupérer
 class ProduitsSerializer(serializers.ModelSerializer):
+    # Nouveau champ calculé pour renvoyer l'URL Cloudinary
+    image_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Produits
-        fields = '__all__'
+        # inclut tous les champs + image_url
+        fields = '__all__'  
+
+    def get_image_url(self, obj):
+        if obj.image:
+            # cloudinary_url renvoie un tuple (url, options)
+            url, _ = cloudinary_url(obj.image.public_id, format="jpg")
+            return url
+        return None
 
 
 # Insérer l'utilsateur dans la base de donnée après avoir fait l'inscription
