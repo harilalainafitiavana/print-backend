@@ -367,21 +367,27 @@ def get_deleted_commandes(request):
 @permission_classes([IsAuthenticated])
 def get_all_commandes_admin(request):
     try:
-        # 🔹 Exclure les commandes soft deleted
         commandes = Commande.objects.filter(is_deleted=False).order_by('-date_commande')
+        print(f"🔍 TENTATIVE de sérialisation de {commandes.count()} commande(s)")
         
-        # ⭐ AJOUTEZ LE CONTEXTE ICI
-        serializer = CommandeAdminSerializer(
-            commandes, 
-            many=True,
-            context={'request': request}  # ⭐ C'EST LA CLÉ !
-        )
+        # ⭐ CE BLOC VA CAPTURER L'ERREUR DU SERIALIZER
+        try:
+            serializer = CommandeAdminSerializer(commandes, many=True, context={'request': request})
+            data = serializer.data
+            print("✅ Sérialisation réussie")
+        except Exception as serialization_error:
+            # Cette erreur sera visible dans les logs Railway
+            import traceback
+            error_details = f"🔥 ERREUR de sérialisation : {str(serialization_error)}\n{traceback.format_exc()}"
+            print(error_details)
+            # Renvoyer l'erreur pour la voir aussi dans le navigateur/postman
+            return Response({"serialization_error": str(serialization_error)}, status=500)
         
-        return Response(serializer.data)
-    except Exception as e:
+        return Response(data)
+        
+    except Exception as general_error:
         import traceback
-        return Response({"error": str(e), "trace": traceback.format_exc()}, status=500)
-
+        return Response({"general_error": str(general_error), "trace": traceback.format_exc()}, status=500)
 
 
 # Pour la notification
