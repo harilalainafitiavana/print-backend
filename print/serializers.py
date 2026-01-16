@@ -125,13 +125,27 @@ class BaseFichierSerializer(serializers.ModelSerializer):
         """Retourne l'URL Cloudinary si disponible"""
         if obj.fichier:
             try:
-                # URL Cloudinary
-                return obj.fichier.url
-            except AttributeError:
-                # Ancien fichier local
-                request = self.context.get('request')
-                if request and hasattr(obj.fichier, 'url'):
-                    return request.build_absolute_uri(obj.fichier.url)
+                # 1. Vérifier si c'est Cloudinary (après migration)
+                # CloudinaryResource a 'public_id' et 'url'
+                if hasattr(obj.fichier, 'public_id'):
+                    # ⭐ CLOUDINARY
+                    return obj.fichier.url
+                
+                # 2. Ancien fichier local (avant migration)
+                # FileField a 'url' mais besoin du request pour l'URL absolue
+                elif hasattr(obj.fichier, 'url'):
+                    request = self.context.get('request')
+                    if request:
+                        # Construire l'URL absolue
+                        return request.build_absolute_uri(obj.fichier.url)
+                    else:
+                        # Fallback: URL relative
+                        return obj.fichier.url if obj.fichier.url else None
+                        
+            except Exception as e:
+                print(f"⚠️ Erreur dans get_fichier_url pour fichier {obj.id}: {e}")
+                return None
+        
         return None
 
 

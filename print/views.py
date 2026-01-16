@@ -369,7 +369,14 @@ def get_all_commandes_admin(request):
     try:
         # 🔹 Exclure les commandes soft deleted
         commandes = Commande.objects.filter(is_deleted=False).order_by('-date_commande')
-        serializer = CommandeAdminSerializer(commandes, many=True)
+        
+        # ⭐ AJOUTEZ LE CONTEXTE ICI
+        serializer = CommandeAdminSerializer(
+            commandes, 
+            many=True,
+            context={'request': request}  # ⭐ C'EST LA CLÉ !
+        )
+        
         return Response(serializer.data)
     except Exception as e:
         import traceback
