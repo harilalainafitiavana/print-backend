@@ -66,9 +66,17 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 
 # Recevoir et envoyé la réponse au react pour afficher la liste des utilisteur
 class UsersList(serializers.ModelSerializer):
+    avatar_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Utilisateurs
-        fields = ['id', 'nom', 'prenom', 'email', 'num_tel', 'code_postal', 'ville', 'pays', 'role', 'profils', 'google_avatar_url', 'date_inscription']
+        fields = ['id', 'nom', 'prenom', 'email', 'num_tel', 'code_postal', 'ville', 'pays', 'role', 'profils', 'google_avatar_url', 'date_inscription', 'avatar_url']
+
+        read_only_fields = ['avatar_url']  # Champ en lecture seule
+
+    def get_avatar_url(self, obj):
+        """Utilise la méthode existante du modèle"""
+        return obj.get_avatar_url()
 
 
 
@@ -106,12 +114,21 @@ class BaseConfigurationImpressionSerializer(serializers.ModelSerializer):
 
 
 class BaseFichierSerializer(serializers.ModelSerializer):
+    fichier_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Fichier
         fields = [
             'id', 'nom_fichier', 'fichier', 'format', 'taille',
             'resolution_dpi', 'profil_couleur', 'date_upload'
         ]
+        read_only_fields = ['fichier_url']
+        
+    def get_fichier_url(self, obj):
+        """Retourne l'URL Cloudinary du fichier"""
+        if obj.fichier:
+            return obj.fichier.url
+        return None
 
 
 # Côté User (simplifié) pour la gestion des commandes
