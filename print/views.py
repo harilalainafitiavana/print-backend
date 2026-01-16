@@ -850,7 +850,7 @@ def mot_de_passe_oublie(request):
         token = token_generator.make_token(user)
 
         # 🌐 Création du lien de réinitialisation local pour le moment
-        reset_link = f"http://localhost:5173/reset-password/{uid}/{token}"
+        reset_link = f"https://print-frontend-production.up.railway.app/reset-password/{uid}/{token}"
 
         # ✉️ Envoi du mail de réinitialisation
         try:
