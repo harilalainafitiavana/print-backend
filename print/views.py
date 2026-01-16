@@ -35,9 +35,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 import os
 import time
 from decouple import config
-from django.shortcuts import redirect
-import cloudinary
-import cloudinary.utils
+# import cloudinary.utils
+from django.shortcuts import redirect, get_object_or_404
+# from django.http import Http404
+
 # from transformers import pipeline, AutoTokenizer, AutoModelForQuestionAnswering
 
 # from django.db.models.functions import Func
@@ -419,8 +420,6 @@ def send_notification(request):
 
 
 # Permet aux admin de télecharge le fichier d'un document
-# views.py
-
 def download_file(request, fichier_id):
     fichier_obj = get_object_or_404(Fichier, id=fichier_id)
     
@@ -428,31 +427,30 @@ def download_file(request, fichier_id):
         raise Http404("Fichier non trouvé")
     
     try:
-        # Vérifier si c'est un CloudinaryField
-        if hasattr(fichier_obj.fichier, 'public_id'):
-            # ⭐ GÉNÉRER UNE URL SIGNÉE POUR CLOUDINARY
-            public_id = fichier_obj.fichier.public_id
-            
-            # Déterminer le type de ressource
-            resource_type = 'raw'  # Par défaut pour les PDF
-            
-            # ⭐ CRUCIAL : Générer l'URL signée avec cloudinary.utils.cloudinary_url
-            signed_url, options = cloudinary.utils.cloudinary_url(
-                public_id,
-                resource_type=resource_type,
-                type='authenticated',  # Pour les fichiers raw
-                attachment=True,       # Force le téléchargement
-                sign_url=True         # ⭐ FORCE la signature de l'URL
-            )
-            
-            print(f"🔗 URL Cloudinary signée: {signed_url}")
-            return redirect(signed_url)
+        # ⭐ SIMPLE : Utiliser l'URL existante de Cloudinary
+        # CloudinaryField a déjà une propriété .url
+        cloudinary_url = str(fichier_obj.fichier.url)
         
-        # ... (votre code existant pour les anciens fichiers) ...
+        print(f"🔗 URL Cloudinary originale: {cloudinary_url}")
         
+        # Pour forcer le téléchargement et non l'affichage
+        # Ajouter 'fl_attachment' dans l'URL
+        if 'upload/' in cloudinary_url:
+            # Transformer : .../upload/... → .../upload/fl_attachment/...
+            download_url = cloudinary_url.replace('upload/', 'upload/fl_attachment/')
+            print(f"🔗 URL avec attachment: {download_url}")
+            return redirect(download_url)
+        else:
+            # Si l'URL n'a pas le format attendu, la rediriger telle quelle
+            return redirect(cloudinary_url)
+            
     except Exception as e:
-        print(f"❌ Erreur génération URL Cloudinary: {e}")
-        raise Http404("Erreur lors de la génération du lien")
+        print(f"❌ Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    raise Http404("Erreur lors du téléchargement")
+
 
 # Modifier les profils de l'utilisateur
 class ProfilView(generics.RetrieveUpdateAPIView):
