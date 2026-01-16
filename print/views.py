@@ -405,12 +405,14 @@ def send_notification(request):
 # Permet aux admin de télecharge le fichier d'un document
 def download_file(request, fichier_id):
     fichier_obj = get_object_or_404(Fichier, id=fichier_id)
-    try:
-        response = FileResponse(fichier_obj.fichier.open('rb'))
-        response['Content-Disposition'] = f'attachment; filename="{fichier_obj.nom_fichier}"'
-        return response
-    except FileNotFoundError:
+    
+    if not fichier_obj.fichier:
         raise Http404("Fichier non trouvé")
+    
+    # ⭐ UNIQUEMENT CE CHANGEMENT :
+    # Redirige vers l'URL Cloudinary
+    from django.shortcuts import redirect
+    return redirect(fichier_obj.fichier.url)
 
 
 # Modifier les profils de l'utilisateur
