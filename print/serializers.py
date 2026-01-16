@@ -258,7 +258,8 @@ class ProfilSerializer(serializers.ModelSerializer):
         
         if profils_file:
             print(f"💾 NOUVELLE IMAGE: {profils_file.name}")
-            print(f"📁 Avant: {instance.profils}")
+            # ⭐ MODIFICATION 1 : Ne pas essayer d'imprimer instance.profils directement
+            print(f"📁 Avant: {'Existe' if instance.profils else 'Aucune'}")
             
             # ⭐ AVEC CLOUDINARY : suppression automatique
             # Cloudinary gère lui-même le remplacement si même public_id
@@ -266,14 +267,21 @@ class ProfilSerializer(serializers.ModelSerializer):
             # Sauvegarder le nouveau (Cloudinary upload automatique)
             instance.profils = profils_file  # CloudinaryField gère l'upload
             instance.google_avatar_url = None  # Reset Google avatar
-            print(f"📁 Après: {instance.profils}")
+            
+            # ⭐ MODIFICATION 2 : Sauvegarder avant d'accéder à .url
+            instance.save()  # ⬅️ IMPORTANT : sauvegarder d'abord
+            
+            print(f"📁 Après: {'Existe' if instance.profils else 'Aucune'}")
             
             # ⭐ POUR DEBUG : afficher l'URL Cloudinary
             if instance.profils:
                 print(f"🌐 URL Cloudinary: {instance.profils.url}")
-
-        instance.save()
-        print(f"✅ SAUVEGARDE - Image finale: {instance.profils}")
+        
+        # ⭐ MODIFICATION 3 : Ne sauvegarder qu'une seule fois
+        else:
+            instance.save()
+        
+        print(f"✅ SAUVEGARDE - Image finale: {'Existe' if instance.profils else 'Aucune'}")
         return instance
 
 
