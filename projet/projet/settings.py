@@ -174,8 +174,10 @@ CORS_ALLOW_CREDENTIALS = True # autoriser l’envoi de cookies et headers sensib
 CLOUDINARY = {
     'cloud_name': os.environ.get('CLOUDINARY_CLOUD_NAME'),
     'api_key': os.environ.get('CLOUDINARY_API_KEY'),
-    'api_secret': os.environ.get('CLOUDINARY_API_SECRET')
+    'api_secret': os.environ.get('CLOUDINARY_API_SECRET'),
+    'secure': True
 }
+
 
 AUTH_USER_MODEL = "print.Utilisateurs"
 

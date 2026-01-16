@@ -91,7 +91,7 @@ class Utilisateurs(AbstractBaseUser, PermissionsMixin):
     pays = models.CharField(max_length=100, default='Madagascar') 
     role = models.CharField(max_length=20, default='USER')  # USER ou ADMIN
     date_inscription = models.DateTimeField(auto_now_add=True)
-    profils = CloudinaryField('image', folder='profils_utilisateurs', null=True, blank=True, secure=True)
+    profils = CloudinaryField('image', folder='profils_utilisateurs', null=True, blank=True)
 
     # ⭐ NOUVEAU CHAMP - Ajoutez cette ligne
     google_avatar_url = models.URLField(blank=True, null=True)
@@ -328,7 +328,7 @@ def fichier_upload_path(instance, filename):
 class Fichier(models.Model):
     commande = models.ForeignKey("Commande", on_delete=models.CASCADE, related_name="fichiers")
     nom_fichier = models.CharField(max_length=255)
-    fichier = CloudinaryField('raw', folder='fichiers_commandes', resource_type='auto', null=True, blank=True, secure=True)
+    fichier = CloudinaryField('raw', folder='fichiers_commandes', resource_type='auto', null=True, blank=True)
     format = models.CharField(max_length=50)
     taille = models.DecimalField(max_digits=10, decimal_places=2)
     resolution_dpi = models.IntegerField()
