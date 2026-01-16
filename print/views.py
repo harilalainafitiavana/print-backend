@@ -35,9 +35,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 import os
 import time
 from decouple import config
-# import cloudinary.utils
+import cloudinary.utils
 from django.shortcuts import redirect, get_object_or_404
-# from django.http import Http404
+from django.http import Http404, FileResponse
 
 # from transformers import pipeline, AutoTokenizer, AutoModelForQuestionAnswering
 
@@ -420,6 +420,8 @@ def send_notification(request):
 
 
 # Permet aux admin de télecharge le fichier d'un document
+# views.py
+
 def download_file(request, fichier_id):
     fichier_obj = get_object_or_404(Fichier, id=fichier_id)
     
@@ -427,23 +429,50 @@ def download_file(request, fichier_id):
         raise Http404("Fichier non trouvé")
     
     try:
-        # ⭐ SIMPLE : Utiliser l'URL existante de Cloudinary
-        # CloudinaryField a déjà une propriété .url
-        cloudinary_url = str(fichier_obj.fichier.url)
-        
-        print(f"🔗 URL Cloudinary originale: {cloudinary_url}")
-        
-        # Pour forcer le téléchargement et non l'affichage
-        # Ajouter 'fl_attachment' dans l'URL
-        if 'upload/' in cloudinary_url:
-            # Transformer : .../upload/... → .../upload/fl_attachment/...
-            download_url = cloudinary_url.replace('upload/', 'upload/fl_attachment/')
-            print(f"🔗 URL avec attachment: {download_url}")
-            return redirect(download_url)
-        else:
-            # Si l'URL n'a pas le format attendu, la rediriger telle quelle
-            return redirect(cloudinary_url)
+        # Vérifier si c'est un CloudinaryField
+        if hasattr(fichier_obj.fichier, 'public_id'):
+            public_id = fichier_obj.fichier.public_id
             
+            # ⭐ DÉTERMINER LE TYPE DE FICHIER
+            is_pdf = fichier_obj.nom_fichier.lower().endswith('.pdf')
+            is_image = any(fichier_obj.nom_fichier.lower().endswith(ext) 
+                          for ext in ['.jpg', '.jpeg', '.png', '.gif'])
+            
+            print(f"📁 Fichier: {fichier_obj.nom_fichier}")
+            print(f"📦 Type: {'PDF' if is_pdf else 'Image' if is_image else 'Autre'}")
+            
+            if is_pdf:
+                # ⭐ POUR LES PDF : Utiliser 'raw' avec URL signée
+                # Ajouter l'extension .pdf au public_id
+                public_id_with_ext = f"{public_id}.pdf" if not public_id.endswith('.pdf') else public_id
+                
+                signed_url, options = cloudinary.utils.cloudinary_url(
+                    public_id_with_ext,
+                    resource_type='raw',        # ⭐ CRUCIAL : 'raw' pour PDF
+                    type='authenticated',       # ⭐ CRUCIAL pour raw
+                    attachment=True,
+                    sign_url=True,              # ⭐ CRUCIAL : URL signée
+                    format=''                   # Garder format original
+                )
+                
+                print(f"🔗 URL PDF signée: {signed_url}")
+                return redirect(signed_url)
+                
+            else:
+                # ⭐ POUR LES IMAGES : URL normale avec fl_attachment
+                # Utiliser directement l'URL Cloudinary
+                cloudinary_url = str(fichier_obj.fichier.url)
+                
+                # Ajouter le flag pour forcer le téléchargement
+                if 'upload/' in cloudinary_url:
+                    download_url = cloudinary_url.replace('upload/', 'upload/fl_attachment/')
+                    print(f"🔗 URL Image avec attachment: {download_url}")
+                    return redirect(download_url)
+                else:
+                    return redirect(cloudinary_url)
+        
+        # ... (code pour anciens fichiers locaux) ...
+        
     except Exception as e:
         print(f"❌ Erreur: {e}")
         import traceback
