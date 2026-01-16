@@ -20,11 +20,9 @@ SECRET_KEY = config("SECRET_KEY", default="django-insecure-mevnbhiqf^t0o_3u0qhz(
 DEBUG = config("DEBUG", default=True, cast=bool)
 
 
-ALLOWED_HOSTS = [
-    "127.0.0.1",
-    "localhost",
-    ".railway.app",  # le point permet tous les sous-domaines Railway
-]
+ALLOWED_HOSTS = ["*"]
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True
 
 
 
@@ -154,6 +152,10 @@ REACT_APP_URL = "https://print-frontend-production.up.railway.app"
 
 CORS_ALLOWED_ORIGINS = [
     REACT_APP_URL,
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://*.railway.app",
 ]
 
 
