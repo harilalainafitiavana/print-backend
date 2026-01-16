@@ -403,16 +403,34 @@ def send_notification(request):
 
 
 # Permet aux admin de télecharge le fichier d'un document
+# views.py - MODIFIEZ download_file
 def download_file(request, fichier_id):
     fichier_obj = get_object_or_404(Fichier, id=fichier_id)
     
-    if not fichier_obj.fichier:
-        raise Http404("Fichier non trouvé")
+    # Vérifier si le fichier a été migré vers Cloudinary
+    if hasattr(fichier_obj, 'fichier') and fichier_obj.fichier:
+        # ⭐ CAS CLOUDINARY (nouveau)
+        try:
+            # Rediriger vers l'URL Cloudinary
+            from django.shortcuts import redirect
+            cloudinary_url = fichier_obj.fichier.url
+            return redirect(cloudinary_url)
+        except:
+            # Si Cloudinary échoue, essayer l'ancienne méthode
+            pass
     
-    # ⭐ UNIQUEMENT CE CHANGEMENT :
-    # Redirige vers l'URL Cloudinary
-    from django.shortcuts import redirect
-    return redirect(fichier_obj.fichier.url)
+    # ⭐ CAS ANCIEN (avant migration)
+    try:
+        if fichier_obj.fichier and hasattr(fichier_obj.fichier, 'path'):
+            # Ancien fichier local
+            response = FileResponse(fichier_obj.fichier.open('rb'))
+            response['Content-Disposition'] = f'attachment; filename="{fichier_obj.nom_fichier}"'
+            return response
+    except (FileNotFoundError, AttributeError):
+        pass
+    
+    # ⭐ CAS D'URGENCE : Si aucun des deux ne fonctionne
+    raise Http404("Fichier non trouvé")
 
 
 # Modifier les profils de l'utilisateur

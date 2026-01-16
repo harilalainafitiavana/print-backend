@@ -115,19 +115,23 @@ class BaseConfigurationImpressionSerializer(serializers.ModelSerializer):
 
 class BaseFichierSerializer(serializers.ModelSerializer):
     fichier_url = serializers.SerializerMethodField()
-
+    
     class Meta:
         model = Fichier
-        fields = [
-            'id', 'nom_fichier', 'fichier', 'format', 'taille',
-            'resolution_dpi', 'profil_couleur', 'date_upload'
-        ]
-        read_only_fields = ['fichier_url']
-
+        fields = ['id', 'nom_fichier', 'fichier_url', 'format', 'taille', 
+                 'resolution_dpi', 'profil_couleur', 'date_upload']
+    
     def get_fichier_url(self, obj):
-        """Retourne l'URL Cloudinary du fichier"""
+        """Retourne l'URL Cloudinary si disponible"""
         if obj.fichier:
-            return obj.fichier.url
+            try:
+                # URL Cloudinary
+                return obj.fichier.url
+            except AttributeError:
+                # Ancien fichier local
+                request = self.context.get('request')
+                if request and hasattr(obj.fichier, 'url'):
+                    return request.build_absolute_uri(obj.fichier.url)
         return None
 
 
