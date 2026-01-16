@@ -123,7 +123,7 @@ class BaseFichierSerializer(serializers.ModelSerializer):
             'resolution_dpi', 'profil_couleur', 'date_upload'
         ]
         read_only_fields = ['fichier_url']
-        
+
     def get_fichier_url(self, obj):
         """Retourne l'URL Cloudinary du fichier"""
         if obj.fichier:
@@ -220,10 +220,10 @@ class CommandeAdminSerializer(serializers.ModelSerializer):
 
 # Modifier le profil utilisateur
 class ProfilSerializer(serializers.ModelSerializer):
-    # ⭐ CHAMP POUR LA LECTURE (affichage)
+    # ⭐ CHANGER : pour retourner l'URL Cloudinary
     profils = serializers.SerializerMethodField()
     
-    # ⭐ CHAMP POUR L'ÉCRITURE (upload)
+    # ⭐ CHAMP POUR L'ÉCRITURE (upload) - RESTE INCHANGÉ
     profils_file = serializers.ImageField(
         write_only=True, 
         required=False, 
@@ -236,11 +236,8 @@ class ProfilSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'email']
 
     def get_profils(self, obj):
-        if obj.google_avatar_url:
-            return obj.google_avatar_url
-        if obj.profils:
-            return obj.profils.url
-        return None
+        # ⭐ MODIFIÉ : Utilise get_avatar_url() qui gère déjà la priorité
+        return obj.get_avatar_url()
 
     def update(self, instance, validated_data):
         print("🔄 MISE À JOUR DU PROFIL - DEBUG COMPLET")
@@ -255,7 +252,7 @@ class ProfilSerializer(serializers.ModelSerializer):
         instance.ville = validated_data.get('ville', instance.ville)
         instance.pays = validated_data.get('pays', instance.pays)
 
-        # ⭐⭐ CORRECTION : Utiliser profils_file au lieu de profils
+        # ⭐⭐ MODIFICATION POUR CLOUDINARY
         profils_file = validated_data.get('profils_file', None)
         print(f"📸 Image dans validated_data: {profils_file}")
         
@@ -263,19 +260,22 @@ class ProfilSerializer(serializers.ModelSerializer):
             print(f"💾 NOUVELLE IMAGE: {profils_file.name}")
             print(f"📁 Avant: {instance.profils}")
             
-            # Supprimer l'ancien fichier
-            if instance.profils:
-                instance.profils.delete(save=False)
-                print("🗑️ Ancien fichier supprimé")
+            # ⭐ AVEC CLOUDINARY : suppression automatique
+            # Cloudinary gère lui-même le remplacement si même public_id
             
-            # Sauvegarder le nouveau
-            instance.profils = profils_file
-            instance.google_avatar_url = None
+            # Sauvegarder le nouveau (Cloudinary upload automatique)
+            instance.profils = profils_file  # CloudinaryField gère l'upload
+            instance.google_avatar_url = None  # Reset Google avatar
             print(f"📁 Après: {instance.profils}")
+            
+            # ⭐ POUR DEBUG : afficher l'URL Cloudinary
+            if instance.profils:
+                print(f"🌐 URL Cloudinary: {instance.profils.url}")
 
         instance.save()
         print(f"✅ SAUVEGARDE - Image finale: {instance.profils}")
         return instance
+
 
 class UserMiniSerializer(serializers.ModelSerializer):
     class Meta:
