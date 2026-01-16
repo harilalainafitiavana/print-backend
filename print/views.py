@@ -38,6 +38,7 @@ from decouple import config
 import cloudinary.utils
 from django.shortcuts import redirect, get_object_or_404
 from django.http import Http404, FileResponse
+from .validators import validate_file_against_config
 
 # from transformers import pipeline, AutoTokenizer, AutoModelForQuestionAnswering
 
@@ -127,7 +128,6 @@ def create_commande(request):
             produit_id = data.get("produit_id")
             produit = None
             
-            # ⭐ MODIFICATION : Produit obligatoire seulement si ce n'est pas un livre
             is_book = data.get("is_book", "false").lower() == "true"
             
             if not is_book and not produit_id:
@@ -139,7 +139,6 @@ def create_commande(request):
                 except Produits.DoesNotExist:
                     if not is_book:
                         return Response({"success": False, "error": "Produit non trouvé."}, status=400)
-                    # Pour les livres, on continue même si le produit n'existe pas
 
             # -----------------------------
             # 2️⃣ RÉCUPÉRATION DES DONNÉES
@@ -152,12 +151,14 @@ def create_commande(request):
             book_pages = int(data.get("book_pages")) if data.get("book_pages") and is_book else None
 
             # -----------------------------
-            # 3️⃣ CRÉATION DE LA CONFIGURATION
+            # 3️⃣ CRÉATION DE LA CONFIGURATION (TEMPORAIRE)
             # -----------------------------
             largeur = data.get("largeur")
             hauteur = data.get("hauteur")
-            config = ConfigurationImpression.objects.create(
-                produit=produit,  # ⭐ Peut être None pour les livres
+            
+            # ⭐ NE PAS utiliser .create() tout de suite, créer l'instance
+            config = ConfigurationImpression(
+                produit=produit,
                 format_type=data["format_type"],
                 small_format=data.get("small_format") or None,
                 largeur=Decimal(largeur) if largeur not in [None, ""] else None,
@@ -172,51 +173,77 @@ def create_commande(request):
                 is_book=is_book,
                 book_pages=book_pages
             )
-
+            
+            # ⭐ VALIDATION DU FICHIER AVANT TOUTE CRÉATION
+            uploaded_file = request.FILES.get("file")
+            if not uploaded_file:
+                return Response({
+                    "success": False, 
+                    "error": "Aucun fichier fourni"
+                }, status=400)
+            
+            print(f"🔍 Validation fichier: {uploaded_file.name}, is_book: {is_book}")
+            
+            # VALIDATION DU FICHIER
+            validation_result = validate_file_against_config(uploaded_file, config)
+            
+            print(f"📊 Résultat validation: is_valid={validation_result['is_valid']}")
+            print(f"   Erreurs: {validation_result['errors']}")
+            
+            if not validation_result['is_valid']:
+                # ⭐ Pas besoin de supprimer, rien n'a été créé encore
+                return Response({
+                    "success": False, 
+                    "error": "Le fichier ne correspond pas à la configuration",
+                    "details": validation_result['errors'],
+                    "warnings": validation_result['warnings']
+                }, status=400)
+            
+            # Si des warnings existent, on les log
+            if validation_result['warnings']:
+                print(f"⚠️ Warnings: {validation_result['warnings']}")
+            
             # -----------------------------
-            # 4️⃣ CRÉATION DE LA COMMANDE
+            # 4️⃣ SAUVEGARDE DE LA CONFIGURATION (maintenant que la validation est OK)
+            # -----------------------------
+            config.save()
+            
+            # -----------------------------
+            # 5️⃣ CRÉATION DE LA COMMANDE (UNIQUEMENT ICI)
             # -----------------------------
             commande = Commande.objects.create(
                 utilisateur=user,
                 configuration=config,
                 mode_paiement=data.get("mode_paiement", "MVola")
             )
+            
+            print(f"✅ Commande {commande.id} créée avec succès")
 
             # -----------------------------
-            # 5️⃣ GESTION DU FICHIER UPLOADÉ
+            # 6️⃣ SAUVEGARDE DU FICHIER
             # -----------------------------
-            uploaded_file = request.FILES.get("file")
-            if uploaded_file:
-                Fichier.objects.create(
-                    commande=commande,
-                    nom_fichier=data.get("fileName", uploaded_file.name),
-                    fichier=uploaded_file,
-                    format=data.get("file_format", ""),
-                    taille=str(quantity),
-                    resolution_dpi=data.get("dpi", ""),
-                    profil_couleur=data.get("colorProfile", "")
-                )
-
-            # 4️⃣ Paiement via Mvola Test
-            # mvola_response = requests.post(
-            #     "https://api-mvola-test.com/payment",
-            #     json={
-            #         "phone": data["phone"],
-            #         "amount": float(montant_total),  # <-- converti en float
-            #         "order_id": commande.id
-            #     },
-            #     headers={"Authorization": "Bearer TEST_TOKEN"}
-            # ).json()
-
-            # Simulation avec mvola test
-
-
-            # Email impression en cours (après 2 heures)
+            file_format = data.get("file_format", "")
+            if not file_format:
+                file_info = validation_result['file_info']
+                if file_info['extension'] == '.pdf':
+                    file_format = 'PDF'
+                elif file_info['extension'] in ['.jpg', '.jpeg']:
+                    file_format = 'JPEG'
+                elif file_info['extension'] == '.png':
+                    file_format = 'PNG'
+            
+            Fichier.objects.create(
+                commande=commande,
+                nom_fichier=data.get("fileName", uploaded_file.name),
+                fichier=uploaded_file,
+                format=file_format,
+                taille=str(validation_result['file_info']['size']),
+                resolution_dpi=data.get("dpi", 72),
+                profil_couleur=data.get("colorProfile", "CMYK")
+            )
 
             # -----------------------------
-
-            # -----------------------------
-            # 6️⃣ SIMULATION PAIEMENT Mvola
+            # 7️⃣ SIMULATION PAIEMENT Mvola
             # -----------------------------
             mvola_response = {
                 "transaction_id": f"TEST-{commande.id}",
@@ -231,7 +258,7 @@ def create_commande(request):
             )
 
             # -----------------------------
-            # 7️⃣ PRÉPARATION ENVOI EMAILS
+            # 8️⃣ PRÉPARATION ENVOI EMAILS
             # -----------------------------
             user_email = user.email
             commande_id = commande.id
@@ -241,13 +268,11 @@ def create_commande(request):
             nombre_pages = config.book_pages if config.is_book else "-"
             quantity = config.quantity
 
-            # Récupère le fichier associé
             fichier_associe = Fichier.objects.filter(commande=commande).first()
             nom_fichier = fichier_associe.nom_fichier if fichier_associe else "Aucun fichier"
             format_fichier = fichier_associe.format if fichier_associe else "-"
             resolution = fichier_associe.resolution_dpi if fichier_associe else "-"
 
-            # Email confirmation (après 2 minutes)
             def send_confirmation_email():
                 type_commande = "Livre" if is_book else "Produit normal"
                 produit_nom = produit.name if produit else "Livre (tarifs standard)"
@@ -286,8 +311,10 @@ def create_commande(request):
 
     except Exception as e:
         # Gestion des erreurs
+        print(f"💥 ERREUR dans create_commande: {e}")
         return Response({"success": False, "error": str(e)})
-    
+
+
 # Pour récuper tout les commandes user
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])  # L'utilisateur doit être authentifié
