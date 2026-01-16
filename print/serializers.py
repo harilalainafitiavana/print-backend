@@ -122,31 +122,26 @@ class BaseFichierSerializer(serializers.ModelSerializer):
                  'resolution_dpi', 'profil_couleur', 'date_upload']
     
     def get_fichier_url(self, obj):
-        """Retourne l'URL Cloudinary ou locale"""
-        if not obj.fichier:
-            return None
-        
+        print(f"🔍 Fichier {obj.id} - Type: {type(obj.fichier)}")
+        print(f"   Has public_id: {hasattr(obj.fichier, 'public_id')}")
+        print(f"   Has resource_type: {hasattr(obj.fichier, 'resource_type')}")
+        print(f"   Has url: {hasattr(obj.fichier, 'url')}")
+        """Retourne l'URL Cloudinary ou locale - Version robuste"""
         try:
-            # ⭐ D'ABORD vérifier si c'est un CloudinaryResource
-            # CloudinaryField a une propriété spécifique
-            if hasattr(obj.fichier, 'resource_type'):
-                # C'est un fichier Cloudinary (après migration)
-                try:
-                    return obj.fichier.url
-                except:
-                    # Fallback pour Cloudinary
-                    return None
-            
-            # ⭐ SINON c'est un ancien FileField local (avant migration)
-            elif hasattr(obj.fichier, 'url'):
-                request = self.context.get('request')
-                if request:
-                    return request.build_absolute_uri(obj.fichier.url)
+            # Essayer d'abord Cloudinary
+            if obj.fichier and hasattr(obj.fichier, 'url'):
+                # Vérifier si c'est une URL Cloudinary
+                url = str(obj.fichier.url)
+                if 'cloudinary.com' in url:
+                    return url
                 else:
-                    return obj.fichier.url if obj.fichier.url else None
-                    
+                    # Ancien fichier local
+                    request = self.context.get('request')
+                    if request:
+                        return request.build_absolute_uri(url)
+                    return url
         except Exception as e:
-            print(f"⚠️ Erreur dans get_fichier_url pour fichier {obj.id}: {e}")
+            print(f"⚠️ Erreur URL fichier {obj.id}: {e}")
         
         return None
 
