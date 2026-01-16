@@ -168,8 +168,8 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 
 CORS_ALLOW_CREDENTIALS = True # autoriser l’envoi de cookies et headers sensibles (comme le JWT).
 
-MEDIA_ROOT = BASE_DIR / 'media'
-MEDIA_URL = '/media/'
+# MEDIA_ROOT = BASE_DIR / 'media'
+# MEDIA_URL = '/media/'
 
 CLOUDINARY = {
     'cloud_name': os.environ.get('CLOUDINARY_CLOUD_NAME'),
