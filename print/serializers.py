@@ -66,16 +66,25 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 
 # Recevoir et envoyé la réponse au react pour afficher la liste des utilisteur
 class UsersList(serializers.ModelSerializer):
+    # ⭐ AJOUTEZ CE CHAMP POUR RETOURNER L'URL COMPLÈTE
+    profils = serializers.SerializerMethodField()
     avatar_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Utilisateurs
         fields = ['id', 'nom', 'prenom', 'email', 'num_tel', 'code_postal', 'ville', 'pays', 'role', 'profils', 'google_avatar_url', 'date_inscription', 'avatar_url']
 
-        read_only_fields = ['avatar_url']  # Champ en lecture seule
+    
+    def get_profils(self, obj):
+        """Retourne l'URL Cloudinary complète - COMME ProfilSerializer"""
+        if obj.profils:
+            # ⭐ MÊME LOGIQUE QUE ProfilSerializer
+            return obj.get_avatar_url()
+        return None
 
     def get_avatar_url(self, obj):
-        """Utilise la méthode existante du modèle"""
+        """Pour compatibilité - même logique"""
+        # ⭐ UTILISEZ DIRECTEMENT get_avatar_url() COMME ProfilSerializer
         return obj.get_avatar_url()
 
 
