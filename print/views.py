@@ -42,6 +42,43 @@ from .validators import validate_file_against_config
 
 # from transformers import pipeline, AutoTokenizer, AutoModelForQuestionAnswering
 
+# Ajoutez cette fonction en haut de views.py (après les imports)
+def validate_madagascar_phone(phone_number):
+    """Valide strictement un numéro de téléphone malgache"""
+    import re
+    
+    if not phone_number:
+        return False, ["Le numéro de téléphone est requis"]
+    
+    # Nettoyer le numéro
+    clean_number = re.sub(r'\D', '', str(phone_number))
+    
+    # Vérifier la longueur
+    if len(clean_number) != 10:
+        return False, [f"Le numéro doit contenir 10 chiffres (actuel: {len(clean_number)})"]
+    
+    # Vérifier les préfixes valides (Mobile Money)
+    valid_prefixes = ['032', '033', '034', '037', '038']
+    prefix = clean_number[:3]
+    
+    if prefix not in valid_prefixes:
+        operators = {
+            '032': 'Orange',
+            '033': 'Airtel', 
+            '034': 'Telma',
+            '037': 'Orange',
+            '038': 'Telma'
+        }
+        valid_list = [f"{p} ({operators[p]})" for p in valid_prefixes]
+        return False, [f"Préfixe {prefix} invalide. Opérateurs Mobile Money: {', '.join(valid_list)}"]
+    
+    # Vérifier que c'est bien un numéro
+    if not clean_number.isdigit():
+        return False, ["Le numéro ne doit contenir que des chiffres"]
+    
+    # Numéro valide
+    return True, []
+
 # from django.db.models.functions import Func
 # Ici ModelViewSet génère automatiquement les routes pour CRUD: GET/POST/PUT/DELETE
 # GET /api/produits/ → liste les produits
@@ -114,11 +151,24 @@ class MeView(APIView):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_commande(request):
-    """
-    Endpoint pour créer une commande d'impression.
-    """
     data = request.data
     user = request.user
+    
+    print(f"📞 Validation téléphone: {data.get('phone', '')}")
+    
+    # ⭐ VALIDATION STRICTE DU TÉLÉPHONE
+    phone = data.get("phone", "")
+    is_valid_phone, phone_errors = validate_madagascar_phone(phone)
+    
+    if not is_valid_phone:
+        print(f"❌ Téléphone invalide: {phone_errors}")
+        return Response({
+            "success": False,
+            "error": "Numéro de téléphone invalide",
+            "details": phone_errors
+        }, status=400)
+    
+    print(f"✅ Téléphone valide: {phone}")
 
     try:
         with transaction.atomic():
