@@ -23,7 +23,11 @@ SECRET_KEY = config("SECRET_KEY", default="django-insecure-mevnbhiqf^t0o_3u0qhz(
 DEBUG = config("DEBUG", default=True, cast=bool)
 
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [
+    ".onrender.com",
+    "localhost",
+    "127.0.0.1",
+]
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
 
@@ -66,7 +70,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True  
+CORS_ALLOW_ALL_ORIGINS = False  
 
 ROOT_URLCONF = 'projet.projet.urls'
 
@@ -104,7 +108,7 @@ WSGI_APPLICATION = 'projet.wsgi.application'
 
 DATABASES = {
     "default": dj_database_url.config(
-        default=os.environ.get("DATABASE_PUBLIC_URL")
+        default=os.environ.get("DATABASE_URL")
     )
 }
 
@@ -151,14 +155,15 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # pour ne pas ouvrir l'API à tout le monde
-REACT_APP_URL = "https://print-frontend-production.up.railway.app"
+REACT_APP_URL = "https://tubular-sprinkles-7cdfe0.netlify.app/"
 
 CORS_ALLOWED_ORIGINS = [
     REACT_APP_URL,
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://*.railway.app",
+    "https://*.onrender.com",
+    "https://*.netlify.app",
 ]
 
 
