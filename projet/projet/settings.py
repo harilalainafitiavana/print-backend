@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config("SECRET_KEY", default="django-insecure-mevnbhiqf^t0o_3u0qhz(=914l!)x25o9k%qj)bqlx5&7lj43f")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config("DEBUG", default=True, cast=bool)
+DEBUG = config("DEBUG", default=False, cast=bool)
 
 
 ALLOWED_HOSTS = [
@@ -62,6 +62,7 @@ REST_FRAMEWORK = {
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -155,7 +156,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # pour ne pas ouvrir l'API à tout le monde
-REACT_APP_URL = "https://tubular-sprinkles-7cdfe0.netlify.app/"
+REACT_APP_URL = "https://tubular-sprinkles-7cdfe0.netlify.app"
 
 CORS_ALLOWED_ORIGINS = [
     REACT_APP_URL,
