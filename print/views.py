@@ -715,6 +715,8 @@ def commande_en_cours(request, commande_id):
 
         # Envoi de l'email
         try:
+            print("📧 Tentative d'envoi email...")
+
             send_mail(
                 subject="🖨️ Print.mg - Votre commande est en cours d'impression",
                 message=(
@@ -733,10 +735,10 @@ def commande_en_cours(request, commande_id):
                 fail_silently=False,
             )
 
-            print("✅ EMAIL ENVOYÉ AVEC SUCCÈS")
+            print("✅ Email envoyé avec succès")
 
         except Exception as e:
-            print("❌ ERREUR ENVOI EMAIL :", str(e))
+            print("❌ ERREUR EMAIL :", str(e))
 
         # Mettre à jour le statut
         commande.statut = "EN_COURS_IMPRESSION"
