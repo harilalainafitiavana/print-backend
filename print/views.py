@@ -714,23 +714,29 @@ def commande_en_cours(request, commande_id):
         resolution = fichier.resolution_dpi if fichier else "-"
 
         # Envoi de l'email
-        # send_mail(
-        #     subject="🖨️ Print.mg - Votre commande est en cours d'impression",
-        #     message=(
-        #         f"Re-bonjour {user.nom} {user.prenom},\n\n"
-        #         f"Votre commande n°{commande.id} est maintenant en cours d'impression 🖨️.\n\n"
-        #         f"📌 Détails de la commande :\n"
-        #         f"- Montant : {montant} Ar\n"
-        #         f"- Quantité : {quantity}\n"
-        #         f"- Nombre de pages : {nombre_pages}\n"
-        #         f"- Format : {format_type} ({small_format})\n"
-        #         f"- Fichier : {nom_fichier} ({format_fichier}, {resolution} dpi)\n\n"
-        #         f"Nous vous tiendrons informé lors de l’expédition 🚚.\n"
-        #     ),
-        #     from_email=settings.DEFAULT_FROM_EMAIL,
-        #     recipient_list=[user.email],
-        #     fail_silently=False,
-        # )
+        try:
+            send_mail(
+                subject="🖨️ Print.mg - Votre commande est en cours d'impression",
+                message=(
+                    f"Re-bonjour {user.nom} {user.prenom},\n\n"
+                    f"Votre commande n°{commande.id} est maintenant en cours d'impression 🖨️.\n\n"
+                    f"📌 Détails de la commande :\n"
+                    f"- Montant : {montant} Ar\n"
+                    f"- Quantité : {quantity}\n"
+                    f"- Nombre de pages : {nombre_pages}\n"
+                    f"- Format : {format_type} ({small_format})\n"
+                    f"- Fichier : {nom_fichier} ({format_fichier}, {resolution} dpi)\n\n"
+                    f"Nous vous tiendrons informé lors de l’expédition 🚚.\n"
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+
+            print("✅ EMAIL ENVOYÉ AVEC SUCCÈS")
+
+        except Exception as e:
+            print("❌ ERREUR ENVOI EMAIL :", str(e))
 
         # Mettre à jour le statut
         commande.statut = "EN_COURS_IMPRESSION"
