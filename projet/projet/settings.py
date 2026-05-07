@@ -216,6 +216,9 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
 # Par défaut, Django utilisera cet expéditeur
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
+# Temps d'attente 
+EMAIL_TIMEOUT = 10
+
 # 🔹 Clé API OpenAI
 GEMINI_API_KEY = config("GEMINI_API_KEY")
 
