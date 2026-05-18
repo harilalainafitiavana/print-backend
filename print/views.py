@@ -15,7 +15,6 @@ from rest_framework.decorators import api_view, permission_classes
 from django.http import FileResponse, Http404, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404
 import threading
-from django.core.mail import send_mail
 from django.conf import settings
 from django.db.models import Count, Sum, F, Value
 from django.db.models.functions import TruncMonth
@@ -39,6 +38,7 @@ import cloudinary.utils
 from django.shortcuts import redirect, get_object_or_404
 from django.http import Http404, FileResponse
 from .validators import validate_file_against_config
+from projet.utils.email_service import send_resend_email
 
 # from transformers import pipeline, AutoTokenizer, AutoModelForQuestionAnswering
 
@@ -327,9 +327,10 @@ def create_commande(request):
                 type_commande = "Livre" if is_book else "Produit normal"
                 produit_nom = produit.name if produit else "Livre (tarifs standard)"
                 
-                send_mail(
-                    subject="✅ Confirmation de votre commande sur Print.mg",
-                    message=(
+                send_resend_email(
+                    user_email,
+                    "✅ Confirmation de votre commande sur Print.mg",
+                    (
                         f"Bonjour {user.nom} {user.prenom},\n\n"
                         f"Votre commande n°{commande_id} a bien été reçue ✅.\n\n"
                         f"📌 Détails de la commande :\n"
@@ -340,12 +341,8 @@ def create_commande(request):
                         f"- Nombre de pages : {nombre_pages}\n"
                         f"- Format : {format_type} ({small_format})\n"
                         f"- Fichier : {nom_fichier} ({format_fichier}, {resolution} dpi)\n\n"
-                        f"Nous vous enverrons un email lorsque l'impression commencera 🖨️.\n\n"
                         f"Merci de votre confiance 🙏"
-                    ),
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[user_email],
-                    fail_silently=False,
+                    )
                 )
 
             threading.Timer(120, send_confirmation_email).start()
@@ -664,23 +661,19 @@ def terminer_commande(request, commande_id):
         resolution = fichier.resolution_dpi if fichier else "-"
 
         # ✅ Envoi de l'email avec détails
-        send_mail(
-            subject="📦 Print.mg - Votre commande est prête à être livrée",
-            message=(
+        send_resend_email(
+            user.email,
+            "📦 Print.mg - Commande terminée",
+            (
                 f"Bonjour {user.nom} {user.prenom},\n\n"
-                f"Votre commande n°{commande.id} est maintenant terminée ✅ et prête à être livrée.\n\n"
-                f"📌 Détails de la commande :\n"
+                f"Votre commande n°{commande.id} est terminée ✅.\n\n"
+                f"📌 Détails :\n"
                 f"- Montant total : {montant} Ar\n"
                 f"- Quantité : {quantity}\n"
-                f"- Nombre de pages : {nombre_pages}\n"
                 f"- Format : {format_type} ({small_format})\n"
                 f"- Fichier : {nom_fichier} ({format_fichier}, {resolution} dpi)\n\n"
-                f"Nous vous envoyez une message à votre numéro téléphone pour la livraison\n"
                 f"Merci pour votre confiance 🙏"
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=False,
+            )
         )
 
         return Response({"success": True, "message": "Email envoyé avec succès ✅"})
@@ -717,9 +710,10 @@ def commande_en_cours(request, commande_id):
         try:
             print("📧 Tentative d'envoi email...")
 
-            send_mail(
-                subject="🖨️ Print.mg - Votre commande est en cours d'impression",
-                message=(
+            send_resend_email(
+                user.email,
+                "🖨️ Print.mg - Votre commande est en cours d'impression",
+                (
                     f"Re-bonjour {user.nom} {user.prenom},\n\n"
                     f"Votre commande n°{commande.id} est maintenant en cours d'impression 🖨️.\n\n"
                     f"📌 Détails de la commande :\n"
@@ -729,10 +723,7 @@ def commande_en_cours(request, commande_id):
                     f"- Format : {format_type} ({small_format})\n"
                     f"- Fichier : {nom_fichier} ({format_fichier}, {resolution} dpi)\n\n"
                     f"Nous vous tiendrons informé lors de l’expédition 🚚.\n"
-                ),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=False,
+                )
             )
 
             print("✅ Email envoyé avec succès")
@@ -1007,19 +998,17 @@ def mot_de_passe_oublie(request):
 
         # ✉️ Envoi du mail de réinitialisation
         try:
-            send_mail(
+            send_resend_email(
                 subject="Réinitialisation du mot de passe",
                 message=(
-                    f"Bonjour {user.prenom} qui à l'adresse {user.email},\n\n"
+                    f"Bonjour {user.prenom} qui a l'adresse {user.email},\n\n"
                     f"Vous avez demandé à réinitialiser votre mot de passe.\n"
                     f"Cliquez sur le lien ci-dessous pour le faire :\n"
                     f"{reset_link}\n\n"
                     f"Si vous n'êtes pas à l'origine de cette demande, ignorez simplement cet email.\n\n"
                     f"Cordialement,\nL'équipe Print.mg"
                 ),
-                from_email=settings.EMAIL_HOST_USER,  # Adresse d’envoi configurée dans settings.py
-                recipient_list=[email],  # Liste contenant une seule adresse ici
-                fail_silently=False,  # En dev, on veut voir les erreurs
+                to_email=email
             )
         except Exception as e:
             # ⚠️ Si l'envoi échoue (ex: problème SMTP), on log et on informe le client

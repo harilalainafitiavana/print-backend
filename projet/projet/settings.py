@@ -202,24 +202,28 @@ SIMPLE_JWT = {
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+
 # 🔹 Serveur Gmail
-EMAIL_HOST = "smtp.gmail.com"
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
+# EMAIL_HOST = "smtp.gmail.com"
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
 
 
 # 🔹Compte Gmail (expéditeur)
-EMAIL_HOST_USER = config("EMAIL_HOST_USER")
+# EMAIL_HOST_USER = config("EMAIL_HOST_USER")
 # IMPORTANT : utilise un "mot de passe d’application" Google
-EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
+# EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
 
 # Par défaut, Django utilisera cet expéditeur
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+# DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Temps d'attente 
-EMAIL_TIMEOUT = 10
+# EMAIL_TIMEOUT = 10
 
 # 🔹 Clé API OpenAI
 GEMINI_API_KEY = config("GEMINI_API_KEY")
+
+
 
 
